@@ -1,0 +1,156 @@
+// src/hooks/useEquipment.ts
+import { useState, useEffect, useCallback } from "react";
+import { equipmentTypesApi } from "../api/equipment";
+import { EquipmentType, EquipmentParameter, EquipmentDataPoint } from "../types/equipment";
+
+export const useEquipment = (group: string = "hvac") => {
+  const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([]);
+  const [selectedParameter, setSelectedParameter] = useState<string | null>(null);
+  const [currentValues, setCurrentValues] = useState<EquipmentParameter[]>([]);
+  const [chartData, setChartData] = useState<EquipmentDataPoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Загрузка типов оборудования
+  const loadEquipmentTypes = useCallback(async () => {
+    try {
+      setLoading(true);
+      const types = await equipmentTypesApi.getEquipmentTypes(group);
+      
+      if (types.length > 0) {
+        setEquipmentTypes(types);
+        if (!selectedParameter && types.length > 0) {
+          setSelectedParameter(types[0].id);
+        }
+      }
+    } catch (err) {
+      setError("Не удалось загрузить типы оборудования");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [group, selectedParameter]);
+
+  // Загрузка текущих значений
+  const loadCurrentValues = useCallback(async () => {
+    if (equipmentTypes.length === 0) return;
+    
+    try {
+      const parameterIds = equipmentTypes.map(type => type.id);
+      const response = await equipmentTypesApi.getEquipmentData(parameterIds);
+      
+      if (response && Array.isArray(response) && response[0]) {
+        const data = response[0];
+        const parameters: EquipmentParameter[] = [];
+
+        equipmentTypes.forEach(type => {
+          if (data[type.id]) {
+            const value = equipmentTypesApi.extractValue(data[type.id]);
+            const status = calculateStatus(value, type.min, type.max);
+            
+            parameters.push({
+              id: type.id,
+              name: type.displayName,
+              value: value,
+              unit: type.unit,
+              min: type.min,
+              max: type.max,
+              timestamp: new Date().toISOString(),
+              status: status,
+              group: type.group,
+              type: type.type,
+              parameter: type.parameter
+            });
+          }
+        });
+
+        setCurrentValues(parameters);
+      }
+    } catch (err) {
+      console.error("Ошибка загрузки текущих значений:", err);
+    }
+  }, [equipmentTypes]);
+
+  // Загрузка данных для графика
+  const loadChartData = useCallback(async (parameterId: string) => {
+    try {
+      setLoading(true);
+      
+      // Пока используем данные из getEquipmentData
+      const response = await equipmentTypesApi.getEquipmentData([parameterId]);
+      
+      if (response && Array.isArray(response) && response[0]) {
+        const data = response[0][parameterId];
+        const chartPoints: EquipmentDataPoint[] = [];
+        
+        if (data && Array.isArray(data)) {
+          const now = new Date();
+          
+          data.forEach((item: any, index: number) => {
+            const time = new Date(now);
+            time.setMinutes(now.getMinutes() - (data.length - index - 1) * 2);
+            
+            chartPoints.push({
+              timestamp: time.toISOString(),
+              value: equipmentTypesApi.extractValue(item),
+              parameterId: parameterId
+            });
+          });
+        }
+        
+        setChartData(chartPoints);
+      }
+    } catch (err) {
+      setError(`Не удалось загрузить данные для ${parameterId}`);
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Вспомогательная функция для расчета статуса
+  const calculateStatus = (value: number, min: number, max: number): "normal" | "warning" | "critical" => {
+    if (value < min * 0.9 || value > max * 1.1) return "critical";
+    if (value < min || value > max) return "warning";
+    return "normal";
+  };
+
+  // Обновление графика при выборе параметра
+  useEffect(() => {
+    if (selectedParameter) {
+      loadChartData(selectedParameter);
+    }
+  }, [selectedParameter, loadChartData]);
+
+  // Первоначальная загрузка
+  useEffect(() => {
+    loadEquipmentTypes();
+  }, [loadEquipmentTypes]);
+
+  // Polling для текущих значений
+  useEffect(() => {
+    if (equipmentTypes.length === 0) return;
+    
+    loadCurrentValues();
+    const interval = setInterval(loadCurrentValues, 10000);
+
+    return () => clearInterval(interval);
+  }, [equipmentTypes, loadCurrentValues]);
+
+  return {
+    equipmentTypes,
+    selectedParameter,
+    setSelectedParameter,
+    currentValues,
+    chartData,
+    loading,
+    error,
+    refreshData: () => {
+      loadEquipmentTypes();
+      loadCurrentValues();
+      if (selectedParameter) {
+        loadChartData(selectedParameter);
+      }
+    }
+  };
+};

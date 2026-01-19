@@ -1,0 +1,54 @@
+export interface Equipment {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  location: string;
+}
+
+export interface EquipmentParameter {
+  name: string;
+  value: string;
+  status: string;
+}
+
+export interface MaintenanceSchedule {
+  id: string;
+  equipmentId: string;
+  type: string;
+  plannedDate: string;
+  status: string;
+}
+
+// Расширим существующий тип
+export interface EquipmentParameter {
+  id: string;
+  name: string;
+  value: number;
+  unit: string;
+  min: number;
+  max: number;
+  timestamp: string;
+  status: "normal" | "warning" | "critical";
+  group?: string; // "hvac", "water", "electricity"
+  type?: string; // "датчик", "клапан", "насос", "котел"
+  parameter?: string; // "temperature", "pressure", "flow", "power"
+}
+
+export interface EquipmentType {
+  id: string;
+  type: string;
+  group: string;
+  parameter: string;
+  displayName: string;
+  unit: string;
+  min: number;
+  max: number;
+  color?: string;
+}
+
+export interface EquipmentDataPoint {
+  timestamp: string;
+  value: number;
+  parameterId: string;
+}

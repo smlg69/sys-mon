@@ -1,8 +1,8 @@
 {
-  "name": "sys-mon",
+  "name": "sys-mon-smpl",
   "version": "1.0.0",
   "private": true,
-  "proxy": "https://91.240.87.214:8443",
+  "proxy": "https://localhost:8443",
   "dependencies": {
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",

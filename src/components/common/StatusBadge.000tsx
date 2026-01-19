@@ -1,0 +1,64 @@
+// components/common/StatusBadge.tsx
+import React from 'react';
+import { Chip, ChipProps } from '@mui/material';
+import { StatusType } from '../../types/equipment';
+
+interface StatusBadgeProps extends Omit<ChipProps, 'label' | 'color'> {
+  status: StatusType;
+  showIcon?: boolean;
+}
+
+export const StatusBadge: React.FC<StatusBadgeProps> = ({
+  status,
+  showIcon = true,
+  ...props
+}) => {
+  const getConfig = () => {
+    switch (status) {
+      case StatusType.NORMAL:
+        return {
+          label: 'Норма',
+          color: 'success' as const,
+          icon: showIcon ? '✓' : undefined,
+        };
+      case StatusType.WARNING:
+        return {
+          label: 'Внимание',
+          color: 'warning' as const,
+          icon: showIcon ? '⚠' : undefined,
+        };
+      case StatusType.CRITICAL:
+        return {
+          label: 'Критично',
+          color: 'error' as const,
+          icon: showIcon ? '✗' : undefined,
+        };
+      case StatusType.OFFLINE:
+        return {
+          label: 'Отключен',
+          color: 'default' as const,
+          icon: showIcon ? '●' : undefined,
+        };
+      default:
+        return {
+          label: 'Неизвестно',
+          color: 'default' as const,
+        };
+    }
+  };
+
+  const config = getConfig();
+
+  return (
+    <Chip
+      label={config.label}
+      color={config.color}
+      size="small"
+      {...props}
+      sx={{
+        fontWeight: 500,
+        ...props.sx,
+      }}
+    />
+  );
+};

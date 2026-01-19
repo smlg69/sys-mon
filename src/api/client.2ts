@@ -1,0 +1,89 @@
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+
+class ApiClient {
+  private client: AxiosInstance;
+
+  constructor() {
+    this.client = axios.create({
+      baseURL: '/rest/v1/contexts/users.admin.models.workerLimsN/functions/', // Используем относительный путь благодаря прокси
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+
+    this.setupInterceptors();
+  }
+
+  private setupInterceptors(): void {
+    // Request interceptor для добавления токена
+    this.client.interceptors.request.use(
+      (config) => {
+        const token = this.getAccessToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor для обработки ошибок
+    this.client.interceptors.response.use(
+      (response: AxiosResponse) => response,
+      async (error) => {
+        if (error.response?.status === 401) {
+          // Токен истек, выходим из системы
+          this.clearTokens();
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  private getAccessToken(): string | null {
+    return localStorage.getItem('access_token');
+  }
+
+  private getRefreshToken(): string | null {
+    return localStorage.getItem('refresh_token');
+  }
+
+  private clearTokens(): void {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+  }
+
+  // Метод для сохранения токенов
+  public setTokens(accessToken: string, refreshToken?: string): void {
+    localStorage.setItem('access_token', accessToken);
+    if (refreshToken) {
+      localStorage.setItem('refresh_token', refreshToken);
+    }
+  }
+
+  public async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.get<T>(url, config);
+    return response.data;
+  }
+
+  public async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.post<T>(url, data, config);
+    return response.data;
+  }
+
+  public async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.put<T>(url, data, config);
+    return response.data;
+  }
+
+  public async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.delete<T>(url, config);
+    return response.data;
+  }
+}
+
+export const apiClient = new ApiClient();

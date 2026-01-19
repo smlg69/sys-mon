@@ -1,0 +1,77 @@
+// utils/encodingHelpers.ts
+
+/**
+ * Определяет кодировку текста
+ */
+export function detectEncoding(text: string): 'utf-8' | 'cp1251' | 'unknown' {
+  if (!text) return 'unknown';
+  
+  // Признаки CP1251
+  const cp1251Pattern = /РЎ|Рў|Р Р|Р›|Рњ|Рќ/;
+  
+  // Признаки корректного UTF-8 (кириллица)
+  const utf8CyrillicPattern = /[А-Яа-яЁё]/;
+  
+  const hasCp1251 = cp1251Pattern.test(text);
+  const hasUtf8Cyrillic = utf8CyrillicPattern.test(text);
+  
+  if (hasCp1251 && !hasUtf8Cyrillic) {
+    return 'cp1251';
+  } else if (!hasCp1251 && hasUtf8Cyrillic) {
+    return 'utf-8';
+  } else if (hasCp1251 && hasUtf8Cyrillic) {
+    // Смешанная кодировка
+    return 'cp1251';
+  }
+  
+  return 'unknown';
+}
+
+/**
+ * Преобразует hex строку CP1251 в UTF-8
+ */
+export function hexCp1251ToUtf8(hexString: string): string {
+  const bytes = new Uint8Array(hexString.length / 2);
+  for (let i = 0; i < hexString.length; i += 2) {
+    bytes[i / 2] = parseInt(hexString.substr(i, 2), 16);
+  }
+  
+  try {
+    const decoder = new TextDecoder('windows-1251');
+    return decoder.decode(bytes);
+  } catch {
+    // Ручное преобразование
+    let result = '';
+    for (let i = 0; i < bytes.length; i++) {
+      const charCode = bytes[i];
+      if (charCode >= 0xC0 && charCode <= 0xFF) {
+        result += String.fromCharCode(charCode + 0x0350);
+      } else {
+        result += String.fromCharCode(charCode);
+      }
+    }
+    return result;
+  }
+}
+
+/**
+ * Показывает отладочную информацию о тексте
+ */
+export function debugTextEncoding(text: string): string {
+  const encoding = detectEncoding(text);
+  let info = `🔍 Анализ текста (${text.length} символов):\n`;
+  info += `   Кодировка: ${encoding}\n`;
+  info += `   Первые 10 символов: "${text.substring(0, Math.min(10, text.length))}"\n`;
+  info += `   Коды символов: `;
+  
+  for (let i = 0; i < Math.min(10, text.length); i++) {
+    info += `'${text[i]}'=0x${text.charCodeAt(i).toString(16).toUpperCase()} `;
+  }
+  
+  if (encoding === 'cp1251') {
+    const decoded = decodeWindows1251(text);
+    info += `\n   Декодировано: "${decoded.substring(0, Math.min(20, decoded.length))}"`;
+  }
+  
+  return info;
+}

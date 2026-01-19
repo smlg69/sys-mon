@@ -1,0 +1,45 @@
+// utils/systemRegistry.ts
+export interface SystemConfig {
+  id: string;
+  name: string;
+  icon: React.ElementType;
+  component: React.ComponentType;
+  route: string;
+  equipmentTypes: EquipmentType[];
+  permissions: string[];
+}
+
+export const systemRegistry: Record<string, SystemConfig> = {
+  access: {
+    id: 'access',
+    name: 'Система СКУД',
+    icon: LockIcon,
+    component: AccessSystemPage,
+    route: '/access',
+    equipmentTypes: [EquipmentType.CONTROLLER, EquipmentType.READER, EquipmentType.LOCK],
+    permissions: ['read_access', 'write_access'],
+  },
+  cctv: {
+    id: 'cctv',
+    name: 'Видеонаблюдение',
+    icon: VideocamIcon,
+    component: CCTVSystemPage,
+    route: '/cctv',
+    equipmentTypes: [EquipmentType.CAMERA, EquipmentType.RECORDER, EquipmentType.SERVER],
+    permissions: ['read_cctv', 'write_cctv'],
+  },
+  hvac: {
+    id: 'hvac',
+    name: 'Система ЖКХ',
+    icon: AcUnitIcon,
+    component: HVACSystemPage,
+    route: '/hvac',
+    equipmentTypes: [EquipmentType.PUMP, EquipmentType.VALVE, EquipmentType.SENSOR],
+    permissions: ['read_hvac', 'write_hvac'],
+  },
+};
+
+// Легко добавлять новые системы
+export const registerSystem = (config: SystemConfig) => {
+  systemRegistry[config.id] = config;
+};

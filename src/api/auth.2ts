@@ -1,0 +1,94 @@
+import { apiClient } from './client';
+
+export interface LoginCredentials {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  refresh_token?: string;
+  token_type: string;
+  expires_in: number;
+  user?: {
+    id: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  };
+}
+
+export const authApi = {
+  // Вход в систему - корректный endpoint
+  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    // Важно: endpoint /rest/auth, а не /auth
+    const response = await apiClient.post<AuthResponse>(
+      '/rest/auth',  // Прокси перенаправит на https://localhost:8443/rest/auth
+      credentials    // { username: 'user', password: 'pass' }
+    );
+    
+    // Сохраняем токены
+    if (response.access_token) {
+      // Метод setTokens нужно добавить в apiClient или сохранять напрямую
+      localStorage.setItem('access_token', response.access_token);
+      
+      if (response.refresh_token) {
+        localStorage.setItem('refresh_token', response.refresh_token);
+      }
+      
+      // Сохраняем информацию о пользователе
+      if (response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
+      } else {
+        // Запасной вариант - создаем объект пользователя
+        const user = {
+          id: '1',
+          username: credentials.username,
+          firstName: credentials.username === 'admin' ? 'Администратор' : 'Пользователь',
+          lastName: 'Системы',
+          role: credentials.username === 'admin' ? 'admin' : 'user'
+        };
+        localStorage.setItem('user', JSON.stringify(user));
+      }
+    }
+    
+    return response;
+  },
+
+  // Выход из системы
+  logout: async (): Promise<void> => {
+    try {
+      await apiClient.post('/rest/auth/logout');
+    } catch (error) {
+      console.warn('Logout error:', error);
+    } finally {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('admin');
+    }
+  },
+
+  // Проверка токена
+  validateToken: async (): Promise<boolean> => {
+    try {
+      await apiClient.get('/rest/auth/validate');
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  
+  // Получение текущего пользователя
+  getCurrentUser: () => {
+    const userStr = localStorage.getItem('admin');
+    if (userStr) {
+      try {
+        return JSON.parse(userStr);
+      } catch (error) {
+        return null;
+      }
+    }
+    return null;
+  }
+};

@@ -1,0 +1,103 @@
+// utils/websocket.ts
+class WebSocketClient {
+  private ws: WebSocket | null = null;
+  private reconnectInterval = 5000;
+  private maxReconnectAttempts = 10;
+  private reconnectAttempts = 0;
+  private messageHandlers: Map<string, Function[]> = new Map();
+  private token: string | null = null;
+
+  constructor(private url: string) {}
+
+  connect(token: string) {
+    this.token = token;
+    this.ws = new WebSocket(`${this.url}?token=${token}`);
+
+    this.ws.onopen = () => {
+      console.log('WebSocket connected');
+      this.reconnectAttempts = 0;
+      // Убрали вызов несуществующего метода emit
+      // Вместо этого можно вызвать обработчики
+      this.notifyHandlers('connected', {});
+    };
+
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.handleMessage(data);
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+
+    this.ws.onclose = () => {
+      console.log('WebSocket disconnected');
+      this.attemptReconnect();
+    };
+
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+  }
+
+  on(event: string, handler: Function) {
+    if (!this.messageHandlers.has(event)) {
+      this.messageHandlers.set(event, []);
+    }
+    this.messageHandlers.get(event)!.push(handler);
+  }
+
+  off(event: string, handler: Function) {
+    const handlers = this.messageHandlers.get(event);
+    if (handlers) {
+      const index = handlers.indexOf(handler);
+      if (index > -1) {
+        handlers.splice(index, 1);
+      }
+    }
+  }
+
+  send(event: string, data: any) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ event, data }));
+    }
+  }
+
+  private handleMessage(data: any) {
+    const { event, payload } = data;
+    const handlers = this.messageHandlers.get(event);
+    if (handlers) {
+      handlers.forEach(handler => handler(payload));
+    }
+  }
+
+  private notifyHandlers(event: string, data: any) {
+    const handlers = this.messageHandlers.get(event);
+    if (handlers) {
+      handlers.forEach(handler => handler(data));
+    }
+  }
+
+  private attemptReconnect() {
+    if (this.reconnectAttempts < this.maxReconnectAttempts && this.token) {
+      this.reconnectAttempts++;
+      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      
+      setTimeout(() => {
+        this.connect(this.token!);
+      }, this.reconnectInterval);
+    }
+  }
+
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.messageHandlers.clear();
+  }
+}
+
+export const websocketClient = new WebSocketClient(
+  process.env.REACT_APP_WS_URL || 'ws://localhost:3000'
+);

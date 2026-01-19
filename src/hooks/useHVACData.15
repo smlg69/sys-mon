@@ -1,0 +1,149 @@
+import { useState, useCallback, useEffect } from "react";
+import { hvacDataService } from "../services/hvacDataService";
+import { equipmentTypeService } from "../services/equipmentTypeService";
+import { apiClient } from "../api/client";
+import { SystemParameter, TemperatureDataPoint } from "../types/equipment";
+
+interface UseHVACDataReturn {
+  parameters: SystemParameter[];
+  chartData: TemperatureDataPoint[];
+  loading: boolean;
+  error: string | null;
+  lastUpdate: string;
+  refreshData: () => Promise<void>;
+  rawData: any;
+  equipmentTypes: any[];
+  updateChartForEquipment: (equipmentType: any) => Promise<void>;
+}
+
+export const useHVACData = (pollingInterval: number = 10000): UseHVACDataReturn => {
+  const [parameters, setParameters] = useState<SystemParameter[]>([]);
+  const [chartData, setChartData] = useState<TemperatureDataPoint[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<string>("");
+  const [rawData, setRawData] = useState<any>(null);
+  const [equipmentTypes, setEquipmentTypes] = useState<any[]>([]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      console.log("🔄 Загрузка данных ЖКХ...");
+      
+      const response = await apiClient.post("/getCurrentParamsF", [
+        { system: "hvac", includeHistory: true },
+      ]);
+
+      if (response && Array.isArray(response) && response[0]) {
+        const data = response[0];
+        setRawData(data);
+        
+        // Получаем все параметры системы через обновленный метод
+        const extractedParams = hvacDataService.getAllSystemParameters(data);
+        setParameters(extractedParams);
+
+        // Загружаем типы оборудования если еще не загружены
+        if (equipmentTypes.length === 0) {
+          const types = equipmentTypeService.getAllEquipmentTypes();
+          setEquipmentTypes(types);
+        }
+
+        // Создаем данные для графика по умолчанию
+        if (equipmentTypes.length > 0) {
+          const defaultType = equipmentTypes.find(t => t.backendField === "tu1") || equipmentTypes[0];
+          if (defaultType) {
+            const newChartData = hvacDataService.getChartDataForEquipment(data, defaultType);
+            setChartData(newChartData);
+          }
+        } else if (data.tu && Array.isArray(data.tu)) {
+          // Fallback для обратной совместимости
+          const defaultEquipmentType = {
+            id: "default",
+            type: "тепловой узел",
+            group: "hkх",
+            parameter: "температура",
+            displayName: "Температура котла",
+            unit: "°C",
+            backendField: "tu1",
+          };
+          const newChartData = hvacDataService.getChartDataForEquipment(data, defaultEquipmentType);
+          setChartData(newChartData);
+        }
+
+        setLastUpdate(new Date().toLocaleTimeString("ru-RU"));
+        setError(null);
+        console.log("✅ Данные ЖКХ обновлены");
+      }
+    } catch (err: any) {
+      console.error("❌ Ошибка загрузки данных ЖКХ:", err);
+      setError(err.message || "Ошибка загрузки данных");
+      
+      // Fallback данные
+      const fallbackData = hvacDataService.generateFallbackChartData(65, 24, "Температура котла");
+      setChartData(fallbackData);
+    } finally {
+      setLoading(false);
+    }
+  }, [equipmentTypes]);
+
+  const updateChartForEquipment = useCallback(async (equipmentType: any) => {
+    try {
+      console.log(`🔄 Обновление графика для: ${equipmentType.displayName}`);
+      
+      if (!rawData) {
+        // Если нет данных, загружаем их
+        await fetchData();
+        return;
+      }
+      
+      const newChartData = hvacDataService.getChartDataForEquipment(rawData, equipmentType);
+      
+      if (newChartData.length > 0) {
+        setChartData(newChartData);
+        console.log(`✅ График обновлен: ${equipmentType.displayName}, точек: ${newChartData.length}`);
+      } else {
+        const fallbackData = hvacDataService.generateFallbackChartData(
+          equipmentType.defaultValue || 65,
+          24,
+          equipmentType.displayName
+        );
+        setChartData(fallbackData);
+        console.log(`⚠️ Используются fallback данные для ${equipmentType.displayName}`);
+      }
+    } catch (error) {
+      console.error("❌ Ошибка обновления графика:", error);
+    }
+  }, [rawData, fetchData]);
+
+  // Инициализация сервисов
+  useEffect(() => {
+    const initServices = async () => {
+      await hvacDataService.initialize();
+      await equipmentTypeService.initialize();
+      const types = equipmentTypeService.getAllEquipmentTypes();
+      setEquipmentTypes(types);
+    };
+    
+    initServices();
+  }, []);
+
+  // Polling
+  useEffect(() => {
+    fetchData();
+    
+    const interval = setInterval(fetchData, pollingInterval);
+    return () => clearInterval(interval);
+  }, [fetchData, pollingInterval]);
+
+  return {
+    parameters,
+    chartData,
+    loading,
+    error,
+    lastUpdate,
+    refreshData: fetchData,
+    rawData,
+    equipmentTypes,
+    updateChartForEquipment,
+  };
+};

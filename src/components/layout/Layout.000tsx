@@ -1,0 +1,95 @@
+// components/layout/Layout.tsx
+import React, { useState, useEffect } from 'react';
+import { Box, CssBaseline, Toolbar, useTheme, useMediaQuery } from '@mui/material';
+import { Outlet } from 'react-router-dom';
+import { Header } from './Header';
+import { Sidebar } from './Sidebar';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { checkAuth } from '../../store/authSlice';
+
+export const Layout: React.FC = () => {
+  const theme = useTheme();
+  const dispatch = useAppDispatch();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
+  
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+
+  useEffect(() => {
+    // Проверяем авторизацию при загрузке
+    dispatch(checkAuth());
+  }, [dispatch]);
+
+  useEffect(() => {
+    // На мобильных устройствах сайдбар по умолчанию закрыт
+    if (isMobile) {
+      setSidebarOpen(false);
+    } else {
+      setSidebarOpen(true);
+    }
+  }, [isMobile]);
+
+  const handleMenuClick = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
+
+  const handleSidebarClose = () => {
+    setSidebarOpen(false);
+  };
+
+  if (isLoading) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+        }}
+      >
+        {/* Здесь можно добавить компонент загрузки */}
+        <div>Загрузка...</div>
+      </Box>
+    );
+  }
+
+  if (!isAuthenticated) {
+    // Перенаправление на логин происходит через PrivateRoute
+    return null;
+  }
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      <CssBaseline />
+      
+      {/* Header */}
+      <Header
+        onMenuClick={handleMenuClick}
+        sidebarOpen={sidebarOpen}
+      />
+
+      {/* Sidebar */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={handleSidebarClose}
+      />
+
+      {/* Основной контент */}
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          width: { md: `calc(100% - ${sidebarOpen ? 280 : 0}px)` },
+          transition: theme.transitions.create(['width', 'margin'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+          }),
+        }}
+      >
+        <Toolbar /> {/* Отступ под фиксированным хедером */}
+        <Outlet />
+      </Box>
+    </Box>
+  );
+};
