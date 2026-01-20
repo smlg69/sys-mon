@@ -25,6 +25,10 @@ import {
   FormControl,
   InputLabel,
   Select,
+  RadioGroup,
+  Radio,
+  FormLabel,
+  FormControlLabel,
 } from "@mui/material";
 import {
   Assessment,
@@ -36,145 +40,13 @@ import {
   PictureAsPdf,
   TableChart,
   Print,
-  ShowChart,
-  InsertChart,
   CalendarMonth,
   DateRange,
 } from "@mui/icons-material";
 
-// Вспомогательная функция для скачивания файла из base64 данных
-const downloadBase64File = (base64Data: string, filename: string): boolean => {
-  try {
-    // Убираем возможный data: префикс
-    let cleanBase64 = base64Data;
-    if (cleanBase64.includes('base64,')) {
-      cleanBase64 = cleanBase64.split('base64,')[1];
-    }
-
-    // Проверяем валидность base64
-    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-    if (!base64Regex.test(cleanBase64)) {
-      console.error('Некорректный формат base64 данных');
-      return false;
-    }
-
-    // Декодируем base64
-    const binaryString = atob(cleanBase64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    // Создаем blob
-    const blob = new Blob([bytes], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    });
-
-    // Скачиваем файл
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(downloadUrl);
-
-    console.log(`✅ Файл "${filename}" скачан (${blob.size} байт)`);
-    return true;
-  } catch (error) {
-    console.error('Ошибка при обработке base64 данных:', error);
-    return false;
-  }
-};
-
-// Универсальная функция для генерации отчета
-const generateReport = async (
-  endpoint: string,
-  params: any[] = [],
-  defaultFilename: string,
-  setLoading: (loading: boolean) => void,
-  setError: (error: string | null) => void,
-  setSuccess: (success: string | null) => void,
-  setReportDialogOpen?: (open: boolean) => void
-): Promise<void> => {
-  setLoading(true);
-  setError(null);
-
-  try {
-    console.log(`🔄 Генерация отчета через ${endpoint}...`);
-
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      throw new Error('Требуется авторизация. Пожалуйста, войдите в систему.');
-    }
-
-    // Отправляем запрос
-    const response = await fetch(
-      `/rest/v1/contexts/users.admin.models.workerMS/functions/${endpoint}`,
-      {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(params)
-      }
-    );
-
-    console.log(`✅ Статус ответа: ${response.status} ${response.statusText}`);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Ошибка сервера: ${response.status} ${response.statusText}. ${errorText}`);
-    }
-
-    // Получаем и парсим ответ
-    const result = await response.json();
-    console.log('📋 Ответ сервера:', result);
-
-    // Проверяем структуру ответа
-    if (!Array.isArray(result) || !result[0] || !result[0].value) {
-      throw new Error('Неверный формат ответа сервера');
-    }
-
-    // Парсим вложенный JSON
-    const fileInfo = JSON.parse(result[0].value);
-    console.log('📦 Информация о файле:', {
-      id: fileInfo.id,
-      name: fileInfo.name,
-      hasData: !!fileInfo.data,
-      dataLength: fileInfo.data ? fileInfo.data.length : 0
-    });
-
-    if (!fileInfo.data) {
-      throw new Error('Нет данных файла в ответе сервера');
-    }
-
-    // Формируем имя файла
-    const filename = fileInfo.name || `${defaultFilename}_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-    // Скачиваем файл
-    const downloadSuccess = downloadBase64File(fileInfo.data, filename);
-
-    if (downloadSuccess) {
-      const successMessage = `Отчет "${filename}" успешно сгенерирован и скачан`;
-      setSuccess(successMessage);
-      if (setReportDialogOpen) {
-        setReportDialogOpen(false);
-      }
-    } else {
-      throw new Error('Не удалось сохранить файл');
-    }
-
-  } catch (err: any) {
-    console.error('❌ Ошибка генерации отчета:', err);
-    setError(err.message || 'Не удалось сгенерировать отчет');
-  } finally {
-    setLoading(false);
-  }
-};
+// Импортируем функции генерации отчетов
+import { generateXlsxReport } from "../components/reports/CreateReportXlsx";
+import { generatePdfReport } from "../components/reports/CreateReportPdf";
 
 export const ReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -184,40 +56,63 @@ export const ReportsPage: React.FC = () => {
   const [reportType, setReportType] = useState<
     "orders" | "devices" | "kpi" | null
   >(null);
+  const [reportFormat, setReportFormat] = useState<'xlsx' | 'pdf'>('xlsx');
   const [reportPeriod, setReportPeriod] = useState("month");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   // Функция для генерации отчета по заявкам
-  const generateOrdersReport = async () => {
-    await generateReport(
-      'reportForOrdersXlsxF',
-      [],
-      'orders_report',
-      setLoading,
-      setError,
-      setSuccess,
-      setReportDialogOpen
-    );
+  const generateOrdersReport = async (format: 'xlsx' | 'pdf') => {
+    if (format === 'xlsx') {
+      await generateXlsxReport({
+        endpoint: 'reportForOrdersXlsxF',
+        params: [],
+        defaultFilename: 'orders_report',
+        setLoading,
+        setError,
+        setSuccess,
+        setReportDialogOpen,
+      });
+    } else {
+      await generatePdfReport({
+        reportType: 'orders',
+        params: [],
+        setLoading,
+        setError,
+        setSuccess,
+        setReportDialogOpen,
+      });
+    }
   };
 
   // Функция для генерации отчета по оборудованию
-  const generateDevicesReport = async () => {
-    await generateReport(
-      'reportForDevicesXlsxF',
-      [],
-      'devices_report',
-      setLoading,
-      setError,
-      setSuccess,
-      setReportDialogOpen
-    );
+  const generateDevicesReport = async (format: 'xlsx' | 'pdf') => {
+    if (format === 'xlsx') {
+      await generateXlsxReport({
+        endpoint: 'reportForDevicesXlsxF',
+        params: [],
+        defaultFilename: 'devices_report',
+        setLoading,
+        setError,
+        setSuccess,
+        setReportDialogOpen,
+      });
+    } else {
+      await generatePdfReport({
+        reportType: 'devices',
+        params: [],
+        setLoading,
+        setError,
+        setSuccess,
+        setReportDialogOpen,
+      });
+    }
   };
 
   // Функция для генерации KPI отчета
-  const generateKPIReport = async () => {
+  const generateKPIReport = async (format: 'xlsx' | 'pdf') => {
     // Подготавливаем параметры для KPI отчета
-    const params = [];
+    const params: any[] = [];
     
     if (startDate || endDate) {
       const kpiParams: any = {};
@@ -226,15 +121,26 @@ export const ReportsPage: React.FC = () => {
       params.push(kpiParams);
     }
 
-    await generateReport(
-      'reportForKpiXlsxF',
-      params,
-      'kpi_report',
-      setLoading,
-      setError,
-      setSuccess,
-      setReportDialogOpen
-    );
+    if (format === 'xlsx') {
+      await generateXlsxReport({
+        endpoint: 'reportForKPIXlsxF', // Исправлено: было 'reportForKpiXlsxF'
+        params,
+        defaultFilename: 'kpi_report',
+        setLoading,
+        setError,
+        setSuccess,
+        setReportDialogOpen,
+      });
+    } else {
+      await generatePdfReport({
+        reportType: 'kpi',
+        params,
+        setLoading,
+        setError,
+        setSuccess,
+        setReportDialogOpen,
+      });
+    }
   };
 
   // Обработчик создания отчета
@@ -243,13 +149,13 @@ export const ReportsPage: React.FC = () => {
 
     switch (reportType) {
       case "orders":
-        generateOrdersReport();
+        generateOrdersReport(reportFormat);
         break;
       case "devices":
-        generateDevicesReport();
+        generateDevicesReport(reportFormat);
         break;
       case "kpi":
-        generateKPIReport();
+        generateKPIReport(reportFormat);
         break;
     }
   };
@@ -257,6 +163,7 @@ export const ReportsPage: React.FC = () => {
   // Обработчик открытия диалога отчета
   const handleOpenReportDialog = (type: "orders" | "devices" | "kpi") => {
     setReportType(type);
+    setReportFormat('xlsx'); // По умолчанию XLSX
     setError(null);
     setSuccess(null);
 
@@ -321,6 +228,20 @@ export const ReportsPage: React.FC = () => {
   // История отчетов
   const reports: any[] = [];
 
+  // Функция для получения названия отчета
+  const getReportTypeName = (type: string | null): string => {
+    switch (type) {
+      case "orders":
+        return "Отчет по заявкам";
+      case "devices":
+        return "Отчет по оборудованию";
+      case "kpi":
+        return "KPI отчет";
+      default:
+        return "Отчет";
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       {/* Уведомления */}
@@ -360,7 +281,7 @@ export const ReportsPage: React.FC = () => {
           <Box>
             <Typography variant="h4">Отчеты и аналитика</Typography>
             <Typography variant="body1" color="text.secondary">
-              Генерация и скачивание отчетов в формате Excel
+              Генерация и скачивание отчетов в форматах Excel и PDF
             </Typography>
           </Box>
         </Box>
@@ -493,14 +414,54 @@ export const ReportsPage: React.FC = () => {
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <CalendarMonth color="primary" />
             <Typography variant="h6">
-              {reportType === "orders" && "Отчет по заявкам"}
-              {reportType === "devices" && "Отчет по оборудованию"}
-              {reportType === "kpi" && "KPI отчет"}
+              {getReportTypeName(reportType)}
             </Typography>
           </Box>
         </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2, display: "flex", flexDirection: "column", gap: 3 }}>
+            {/* Выбор формата отчета */}
+            <FormControl component="fieldset">
+              <FormLabel component="legend">Формат отчета</FormLabel>
+              <RadioGroup
+                row
+                value={reportFormat}
+                onChange={(e) => setReportFormat(e.target.value as 'xlsx' | 'pdf')}
+              >
+                <FormControlLabel
+                  value="xlsx"
+                  control={<Radio />}
+                  label={
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <TableChart fontSize="small" />
+                      <Typography>Excel (XLSX)</Typography>
+                    </Box>
+                  }
+                  disabled={loading}
+                />
+                <FormControlLabel
+                  value="pdf"
+                  control={<Radio />}
+                  label={
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <PictureAsPdf fontSize="small" />
+                      <Typography>PDF</Typography>
+                    </Box>
+                  }
+                  disabled={loading}
+                />
+              </RadioGroup>
+            </FormControl>
+
+            {/* Описание форматов */}
+            <Alert severity="info" variant="outlined">
+              <Typography variant="body2">
+                {reportFormat === 'xlsx' 
+                  ? "Excel-отчет содержит полные данные и может быть использован для дальнейшего анализа. Формируется на сервере."
+                  : "PDF-отчет содержит основные данные в удобном для чтения формате. Формируется в браузере."}
+              </Typography>
+            </Alert>
+
             {reportType === "kpi" ? (
               <>
                 <FormControl fullWidth>
@@ -557,12 +518,6 @@ export const ReportsPage: React.FC = () => {
               </Typography>
             )}
 
-            <Typography variant="body2" color="text.secondary">
-              {reportType === "kpi" 
-                ? "Отчет будет сгенерирован в формате Excel за указанный период и автоматически скачан."
-                : "Отчет будет сгенерирован в формате Excel и автоматически скачан."}
-            </Typography>
-
             {error && (
               <Alert severity="error" sx={{ mt: 1 }}>
                 {error}
@@ -588,10 +543,11 @@ export const ReportsPage: React.FC = () => {
             variant="contained"
             disabled={loading || (reportType === "kpi" && (!startDate || !endDate))}
             startIcon={
-              loading ? <CircularProgress size={20} color="inherit" /> : null
+              loading ? <CircularProgress size={20} color="inherit" /> : 
+              reportFormat === 'pdf' ? <PictureAsPdf /> : <TableChart />
             }
           >
-            {loading ? "Генерация..." : "Сгенерировать отчет"}
+            {loading ? "Генерация..." : `Сгенерировать в ${reportFormat.toUpperCase()}`}
           </Button>
         </DialogActions>
       </Dialog>
@@ -686,16 +642,24 @@ export const ReportsPage: React.FC = () => {
           <Button 
             variant="outlined" 
             startIcon={<PictureAsPdf />}
-            onClick={() => alert("Функция сохранения в PDF будет доступна позже")}
+            onClick={() => {
+              setReportType("orders");
+              setReportFormat("pdf");
+              setReportDialogOpen(true);
+            }}
           >
-            Сохранить в PDF
+            Создать PDF отчет
           </Button>
           <Button 
             variant="outlined" 
             startIcon={<TableChart />}
-            onClick={() => alert("Функция сохранения в XLS будет доступна позже")}
+            onClick={() => {
+              setReportType("orders");
+              setReportFormat("xlsx");
+              setReportDialogOpen(true);
+            }}
           >
-            Сохранить в XLS
+            Создать Excel отчет
           </Button>
           <Button 
             variant="outlined" 
@@ -715,12 +679,12 @@ export const ReportsPage: React.FC = () => {
         <Grid container spacing={2}>
           <Grid item xs={12} md={4}>
             <Typography variant="body2">
-              <strong>Формат отчетов:</strong> Excel (.xlsx)
+              <strong>Формат отчетов:</strong> Excel (.xlsx) и PDF
             </Typography>
           </Grid>
           <Grid item xs={12} md={4}>
             <Typography variant="body2">
-              <strong>Кодировка данных:</strong> Base64
+              <strong>Кодировка данных:</strong> Base64 (Excel), UTF-8 (PDF)
             </Typography>
           </Grid>
           <Grid item xs={12} md={4}>
@@ -729,6 +693,10 @@ export const ReportsPage: React.FC = () => {
             </Typography>
           </Grid>
         </Grid>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+          Примечание: PDF отчеты формируются в браузере и могут содержать упрощенную версию данных.
+          Для получения полных данных используйте формат Excel.
+        </Typography>
       </Paper>
     </Box>
   );
