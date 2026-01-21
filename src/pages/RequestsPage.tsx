@@ -1,5 +1,5 @@
 // pages/RequestsPage.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Paper,
@@ -25,7 +25,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TablePagination,
   Divider,
   Stack,
   IconButton,
@@ -50,11 +49,12 @@ import { requestsApi, Order } from "../api/requests";
 import { useFormattedId } from "../hooks/useFormattedId";
 import { AssignOrderModal } from "../components/requests/AssignOrderModal";
 import { apiClient } from "../api/client"; // Импортируем apiClient из работающей версии
+// Импортируем внешний компонент пагинации
+import { ReportPagination } from "../components/reports/Pagination";
 
 // Константы для WebSocket
 const TARGET_WS = process.env.REACT_APP_TARGET_WS || "ws://localhost:9443";
-const BACKEND_URL =
-  process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
+//const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
 
 // Интерфейс для данных формы новой заявки
 interface NewOrderFormData {
@@ -109,14 +109,12 @@ const RequestsPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   // Состояния для пагинации
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1); // Внешний компонент использует 1-based индексацию
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [rowsPerPageOptions] = useState([10, 25, 50, 100]);
 
   // WebSocket состояния
   const [wsConnected, setWsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-
+  // const wsRef = useRef<WebSocket | null>(null);
 
   // Функция загрузки заявок через API клиент (как в рабочей версии HVACSystemPage)
   const fetchOrders = async () => {
@@ -590,22 +588,20 @@ const RequestsPage: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  // Пагинация
-  const handleChangePage = (event: unknown, newPage: number) => {
+  // Пагинация с использованием внешнего компонента
+  const startIndex = (page - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
+
+  // Обработчики для внешнего компонента пагинации
+  const handlePageChange = (newPage: number) => {
     setPage(newPage);
   };
 
-  const handleChangeRowsPerPage = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+  const handleRowsPerPageChange = (newRowsPerPage: number) => {
+    setRowsPerPage(newRowsPerPage);
+    setPage(1); // Сбрасываем на первую страницу при изменении количества строк
   };
-
-  const paginatedOrders = filteredOrders.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
 
   // Статистика
   const stats = {
@@ -701,111 +697,111 @@ const RequestsPage: React.FC = () => {
   };
 
   const handleCreateOrder = async () => {
-  if (!validateForm()) {
-    return;
-  }
+    if (!validateForm()) {
+      return;
+    }
 
-  setSubmitting(true);
-  try {
-    // Подготавливаем данные для отправки на бэк
-    // Только 5 полей: тип, устройство, приоритет, описание, пользователь
-    const orderData = {
-      type: formData.type,
-      device: formData.device,
-      priority: formData.priority,
-      description: formData.description,
-      // Только user, без date и других полей
-      user: formData.user || '',
-    };
-
-    console.log('📤 Отправка данных на сервер:', orderData);
-
-    // Вызываем API для создания заявки
-    const response = await requestsApi.createOrder(orderData);
-    
-    console.log('✅ Ответ от сервера при создании:', response);
-
-    // Если сервер вернул созданную заявку
-    let createdOrder: Order;
-    if (Array.isArray(response) && response.length > 0) {
-      // Если ответ - массив с созданной заявкой
-      createdOrder = {
-        id: response[0].id || response[0].orderId || `temp-${Date.now()}`,
-        type: response[0].type || formData.type,
-        device: response[0].device || formData.device,
-        priority: response[0].priority || formData.priority,
-        description: response[0].description || formData.description,
-        status: response[0].status || 'Создана',
-        user: response[0].user || response[0].nUser || formData.user || '',
-        date: new Date().toISOString(),
-        startDate: response[0].startDate || null,
-        endDate: response[0].endDate || null,
-        originalData: response[0],
-      };
-    } else if (response && typeof response === 'object') {
-      // Если ответ - объект
-      createdOrder = {
-        id: response.id || response.orderId || `temp-${Date.now()}`,
-        type: response.type || formData.type,
-        device: response.device || formData.device,
-        priority: response.priority || formData.priority,
-        description: response.description || formData.description,
-        status: response.status || 'Создана',
-        user: response.user || response.nUser || formData.user || '',
-        date: new Date().toISOString(),
-        startDate: response.startDate || null,
-        endDate: response.endDate || null,
-        originalData: response,
-      };
-    } else {
-      // Если сервер не вернул данные, создаем временную запись
-      createdOrder = {
-        id: `temp-${Date.now()}`,
+    setSubmitting(true);
+    try {
+      // Подготавливаем данные для отправки на бэк
+      // Только 5 полей: тип, устройство, приоритет, описание, пользователь
+      const orderData = {
         type: formData.type,
         device: formData.device,
         priority: formData.priority,
         description: formData.description,
-        status: 'Создана',
+        // Только user, без date и других полей
         user: formData.user || '',
-        date: new Date().toISOString(), // Генерируем дату локально
-        startDate: null,
-        endDate: null,
       };
+
+      console.log('📤 Отправка данных на сервер:', orderData);
+
+      // Вызываем API для создания заявки
+      const response = await requestsApi.createOrder(orderData);
+      
+      console.log('✅ Ответ от сервера при создании:', response);
+
+      // Если сервер вернул созданную заявку
+      let createdOrder: Order;
+      if (Array.isArray(response) && response.length > 0) {
+        // Если ответ - массив с созданной заявкой
+        createdOrder = {
+          id: response[0].id || response[0].orderId || `temp-${Date.now()}`,
+          type: response[0].type || formData.type,
+          device: response[0].device || formData.device,
+          priority: response[0].priority || formData.priority,
+          description: response[0].description || formData.description,
+          status: response[0].status || 'Создана',
+          user: response[0].user || response[0].nUser || formData.user || '',
+          date: new Date().toISOString(),
+          startDate: response[0].startDate || null,
+          endDate: response[0].endDate || null,
+          originalData: response[0],
+        };
+      } else if (response && typeof response === 'object') {
+        // Если ответ - объект
+        createdOrder = {
+          id: response.id || response.orderId || `temp-${Date.now()}`,
+          type: response.type || formData.type,
+          device: response.device || formData.device,
+          priority: response.priority || formData.priority,
+          description: response.description || formData.description,
+          status: response.status || 'Создана',
+          user: response.user || response.nUser || formData.user || '',
+          date: new Date().toISOString(),
+          startDate: response.startDate || null,
+          endDate: response.endDate || null,
+          originalData: response,
+        };
+      } else {
+        // Если сервер не вернул данные, создаем временную запись
+        createdOrder = {
+          id: `temp-${Date.now()}`,
+          type: formData.type,
+          device: formData.device,
+          priority: formData.priority,
+          description: formData.description,
+          status: 'Создана',
+          user: formData.user || '',
+          date: new Date().toISOString(), // Генерируем дату локально
+          startDate: null,
+          endDate: null,
+        };
+      }
+
+      // Добавляем заявку в локальное состояние
+      setOrders((prev) => [createdOrder, ...prev]);
+
+      setSnackbar({
+        open: true,
+        message: "Заявка успешно создана",
+        severity: "success",
+      });
+      handleCloseModal();
+
+      console.log("✅ Новая заявка создана:", createdOrder);
+      
+      // WebSocket должен обновить данные автоматически
+
+    } catch (err: any) {
+      console.error("❌ Ошибка создания заявки:", err);
+      
+      let errorMessage = "Ошибка создания заявки";
+      if (err.response?.data) {
+        errorMessage = `Ошибка сервера: ${JSON.stringify(err.response.data)}`;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error",
+      });
+    } finally {
+      setSubmitting(false);
     }
-
-    // Добавляем заявку в локальное состояние
-    setOrders((prev) => [createdOrder, ...prev]);
-
-    setSnackbar({
-      open: true,
-      message: "Заявка успешно создана",
-      severity: "success",
-    });
-    handleCloseModal();
-
-    console.log("✅ Новая заявка создана:", createdOrder);
-    
-    // WebSocket должен обновить данные автоматически
-
-  } catch (err: any) {
-    console.error("❌ Ошибка создания заявки:", err);
-    
-    let errorMessage = "Ошибка создания заявки";
-    if (err.response?.data) {
-      errorMessage = `Ошибка сервера: ${JSON.stringify(err.response.data)}`;
-    } else if (err.message) {
-      errorMessage = err.message;
-    }
-    
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: "error",
-    });
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
   if (loading && orders.length === 0) {
     return (
@@ -823,7 +819,6 @@ const RequestsPage: React.FC = () => {
     );
   }
 
-  // ... остальной JSX код без изменений ...
   return (
     <Box sx={{ p: 3 }}>
       {/* Заголовок и статистика */}
@@ -984,170 +979,164 @@ const RequestsPage: React.FC = () => {
       </Grid>
 
       {/* Таблица заявок */}
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Номер</TableCell>
-              <TableCell>Дата</TableCell>
-              <TableCell>Тип</TableCell>
-              <TableCell>Оборудование</TableCell>
-              <TableCell>Описание</TableCell>
-              <TableCell>Приоритет</TableCell>
-              <TableCell>Ответственный</TableCell>
-              <TableCell>Статус</TableCell>
-              <TableCell>Действия</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {paginatedOrders.length === 0 ? (
+      <Paper sx={{ overflow: 'hidden' }}>
+        <TableContainer>
+          <Table>
+            <TableHead>
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
-                  <Typography color="text.secondary">
-                    {searchTerm || statusFilter !== "all"
-                      ? "Заявки не найдены по заданным фильтрам"
-                      : "Нет заявок"}
-                  </Typography>
-                </TableCell>
+                <TableCell>Номер</TableCell>
+                <TableCell>Дата</TableCell>
+                <TableCell>Тип</TableCell>
+                <TableCell>Оборудование</TableCell>
+                <TableCell>Описание</TableCell>
+                <TableCell>Приоритет</TableCell>
+                <TableCell>Ответственный</TableCell>
+                <TableCell>Статус</TableCell>
+                <TableCell>Действия</TableCell>
               </TableRow>
-            ) : (
-              paginatedOrders.map((order) => (
-                <TableRow key={order.id} hover>
-                  <TableCell>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontFamily: "monospace" }}
-                    >
-                      {order.id}
+            </TableHead>
+            <TableBody>
+              {paginatedOrders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                    <Typography color="text.secondary">
+                      {searchTerm || statusFilter !== "all"
+                        ? "Заявки не найдены по заданным фильтрам"
+                        : "Нет заявок"}
                     </Typography>
-                  </TableCell>
-                  <TableCell>
-                    {order.date ? formatDateTime(order.date) : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={order.type || "—"}
-                      size="small"
-                      color={getTypeColor(order.type || "") as any}
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  <TableCell>{order.device || "—"}</TableCell>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ maxWidth: 200 }}>
-                      {order.description || "—"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={order.priority || "—"}
-                      size="small"
-                      color={getPriorityColor(order.priority || "") as any}
-                      variant="outlined"
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: "0.75rem",
-                        ...(getPriorityColor(order.priority || "") ===
-                          "success" && {
-                          backgroundColor: "#e8f5e9",
-                          color: "#2e7d32",
-                          borderColor: "#2e7d32",
-                        }),
-                        ...(getPriorityColor(order.priority || "") ===
-                          "warning" && {
-                          backgroundColor: "#fff3e0",
-                          color: "#ef6c00",
-                          borderColor: "#ef6c00",
-                        }),
-                        ...(getPriorityColor(order.priority || "") ===
-                          "error" && {
-                          backgroundColor: "#ffebee",
-                          color: "#d32f2f",
-                          borderColor: "#d32f2f",
-                        }),
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell>{order.user || "—"}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={order.status || "Создана"}
-                      color={getStatusColor(order.status || "Создана") as any}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                      <Button
-                        size="small"
-                        startIcon={<Visibility />}
-                        variant="outlined"
-                        onClick={() => handleOpenViewModal(order)}
-                      >
-                        Подробно
-                      </Button>
-                      {order.status === "Создана" && (
-                        <Button
-                          size="small"
-                          startIcon={<PlayArrow />}
-                          color="primary"
-                          variant="contained"
-                          onClick={() => handleOpenAssignModal(order)}
-                        >
-                          В работу
-                        </Button>
-                      )}
-                      {order.status === "В работе" && (
-                        <Button
-                          size="small"
-                          startIcon={<Check />}
-                          color="success"
-                          variant="contained"
-                          onClick={() =>
-                            handleStatusUpdate(order.id, "Закрыта")
-                          }
-                        >
-                          Закрыть
-                        </Button>
-                      )}
-                    </Box>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                paginatedOrders.map((order) => (
+                  <TableRow key={order.id} hover>
+                    <TableCell>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "monospace" }}
+                      >
+                        {order.id}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      {order.date ? formatDateTime(order.date) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={order.type || "—"}
+                        size="small"
+                        color={getTypeColor(order.type || "") as any}
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell>{order.device || "—"}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ maxWidth: 200 }}>
+                        {order.description || "—"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={order.priority || "—"}
+                        size="small"
+                        color={getPriorityColor(order.priority || "") as any}
+                        variant="outlined"
+                        sx={{
+                          fontWeight: 600,
+                          fontSize: "0.75rem",
+                          ...(getPriorityColor(order.priority || "") ===
+                            "success" && {
+                            backgroundColor: "#e8f5e9",
+                            color: "#2e7d32",
+                            borderColor: "#2e7d32",
+                          }),
+                          ...(getPriorityColor(order.priority || "") ===
+                            "warning" && {
+                            backgroundColor: "#fff3e0",
+                            color: "#ef6c00",
+                            borderColor: "#ef6c00",
+                          }),
+                          ...(getPriorityColor(order.priority || "") ===
+                            "error" && {
+                            backgroundColor: "#ffebee",
+                            color: "#d32f2f",
+                            borderColor: "#d32f2f",
+                          }),
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>{order.user || "—"}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={order.status || "Создана"}
+                        color={getStatusColor(order.status || "Создана") as any}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                        <Button
+                          size="small"
+                          startIcon={<Visibility />}
+                          variant="outlined"
+                          onClick={() => handleOpenViewModal(order)}
+                        >
+                          Подробно
+                        </Button>
+                        {order.status === "Создана" && (
+                          <Button
+                            size="small"
+                            startIcon={<PlayArrow />}
+                            color="primary"
+                            variant="contained"
+                            onClick={() => handleOpenAssignModal(order)}
+                          >
+                            В работу
+                          </Button>
+                        )}
+                        {order.status === "В работе" && (
+                          <Button
+                            size="small"
+                            startIcon={<Check />}
+                            color="success"
+                            variant="contained"
+                            onClick={() =>
+                              handleStatusUpdate(order.id, "Закрыта")
+                            }
+                          >
+                            Закрыть
+                          </Button>
+                        )}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
-        {/* Пагинация */}
-        <TablePagination
-          rowsPerPageOptions={rowsPerPageOptions}
-          component="div"
-          count={filteredOrders.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-          labelRowsPerPage="Строк на странице:"
-          labelDisplayedRows={({ from, to, count }) =>
-            `${from}-${to} из ${count}`
-          }
-        />
-      </TableContainer>
+        {/* Внешний компонент пагинации */}
+        {filteredOrders.length > 0 && (
+          <ReportPagination
+            page={page}
+            rowsPerPage={rowsPerPage}
+            totalRows={filteredOrders.length}
+            onPageChange={handlePageChange}
+            onRowsPerPageChange={handleRowsPerPageChange}
+            disabled={loading}
+          />
+        )}
+      </Paper>
 
-      {/* Альтернативная пагинация */}
+      {/* Информация о последнем обновлении */}
       <Box
         sx={{
           mt: 2,
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
           alignItems: "center",
         }}
       >
-        <Typography variant="body2" color="text.secondary">
-          Показано {filteredOrders.length === 0 ? 0 : page * rowsPerPage + 1}-
-          {Math.min((page + 1) * rowsPerPage, filteredOrders.length)} из{" "}
-          {filteredOrders.length} заявок
-        </Typography>
         <Typography variant="body2" color="text.secondary">
           Последнее обновление: {new Date().toLocaleTimeString("ru-RU")}
         </Typography>

@@ -27,7 +27,6 @@ import {
   Snackbar,
   CardHeader,
   Tooltip,
-  Pagination,
   FormControl,
   InputLabel,
   MenuItem,
@@ -46,10 +45,6 @@ import {
   TrendingDown,
   ArrowUpward,
   ArrowDownward,
-  FirstPage,
-  LastPage,
-  ChevronLeft,
-  ChevronRight,
   CheckCircle,
   Warning as WarningIcon,
   Error as ErrorIcon,
@@ -57,9 +52,10 @@ import {
   Build as BuildIcon,
   SensorDoor,
   Dashboard,
-  Search,
 } from "@mui/icons-material";
 import { apiClient } from "../api/client";
+// Импортируем внешний компонент пагинации
+import { ReportPagination } from "../components/reports/Pagination";
 
 // Интерфейсы данных
 interface AccessDevice {
@@ -329,14 +325,19 @@ export const AccessSystemPage: React.FC = () => {
 
   const [devices, setDevices] = useState<AccessDevice[]>([]);
   const [filteredDevices, setFilteredDevices] = useState<AccessDevice[]>([]);
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
+
+  // Состояния для пагинации
+  // 1. Пагинация схемы
   const [schemePage, setSchemePage] = useState<number>(1);
-  const [schemeItemsPerPage] = useState<number>(9);
+  const [schemeRowsPerPage] = useState<number>(9); // 3x3 сетка
+  
+  // 2. Пагинация оборудования
   const [equipmentPage, setEquipmentPage] = useState<number>(1);
   const [equipmentRowsPerPage, setEquipmentRowsPerPage] = useState<number>(10);
   const [equipmentTotalCount, setEquipmentTotalCount] = useState<number>(0);
-  const [wsConnected, setWsConnected] = useState<boolean>(false);
-
-  // Состояния для задач обслуживания
+  
+  // 3. Пагинация задач обслуживания
   const [maintenanceTasks, setMaintenanceTasks] = useState<AccessMaintenanceTask[]>([]);
   const [allTasks, setAllTasks] = useState<AccessMaintenanceTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState<boolean>(true);
@@ -796,19 +797,6 @@ export const AccessSystemPage: React.FC = () => {
     setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
-  const handleSchemePageChange = (event: React.ChangeEvent<unknown>, page: number) => {
-    setSchemePage(page);
-  };
-
-  const handleEquipmentPageChange = (event: React.ChangeEvent<unknown>, page: number) => {
-    setEquipmentPage(page);
-  };
-
-  const handleEquipmentRowsPerPageChange = (event: SelectChangeEvent<number>) => {
-    setEquipmentRowsPerPage(Number(event.target.value));
-    setEquipmentPage(1);
-  };
-
   const handleEquipmentTypeChange = (event: SelectChangeEvent) => {
     const type = event.target.value;
     setSelectedEquipmentType(type);
@@ -826,42 +814,49 @@ export const AccessSystemPage: React.FC = () => {
     setEquipmentPage(1);
   };
 
-  // Обработчики для пагинации задач
-  const handleTasksRowsPerPageChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const newRowsPerPage = parseInt(event.target.value, 10);
+  // ========== ОБРАБОТЧИКИ ПАГИНАЦИИ С ИСПОЛЬЗОВАНИЕМ ВНЕШНЕГО КОМПОНЕНТА ==========
+  // 1. Пагинация схемы
+  const handleSchemePageChange = (newPage: number) => {
+    setSchemePage(newPage);
+  };
+
+  // 2. Пагинация оборудования
+  const handleEquipmentPageChange = (newPage: number) => {
+    setEquipmentPage(newPage);
+  };
+
+  const handleEquipmentRowsPerPageChange = (newRowsPerPage: number) => {
+    setEquipmentRowsPerPage(newRowsPerPage);
+    setEquipmentPage(1);
+  };
+
+  // 3. Пагинация задач обслуживания
+  const handleTasksPageChange = (newPage: number) => {
+    setTasksPage(newPage);
+  };
+
+  const handleTasksRowsPerPageChange = (newRowsPerPage: number) => {
     setTasksRowsPerPage(newRowsPerPage);
     setTasksPage(1);
   };
 
-  const handleTasksPageChange = (
-    event: React.ChangeEvent<unknown>,
-    page: number
-  ) => {
-    setTasksPage(page);
-  };
-
   // ========== ВЫЧИСЛЯЕМЫЕ ЗНАЧЕНИЯ ==========
+  // 1. Пагинация схемы
+  const schemeTotalCount = filteredDevices.length;
   const paginatedDevices = useMemo(() => {
-    const startIndex = (schemePage - 1) * schemeItemsPerPage;
-    const endIndex = startIndex + schemeItemsPerPage;
+    const startIndex = (schemePage - 1) * schemeRowsPerPage;
+    const endIndex = startIndex + schemeRowsPerPage;
     return filteredDevices.slice(startIndex, endIndex);
-  }, [filteredDevices, schemePage, schemeItemsPerPage]);
+  }, [filteredDevices, schemePage, schemeRowsPerPage]);
 
-  const totalPages = Math.ceil(filteredDevices.length / schemeItemsPerPage);
-
-  const selectedDevice = useMemo(() => {
-    return devices.find((d) => d.id === selectedNode) || filteredDevices[0];
-  }, [devices, selectedNode, filteredDevices]);
-
+  // 2. Пагинация оборудования
   const equipmentPageDevices = useMemo(() => {
     const startIndex = (equipmentPage - 1) * equipmentRowsPerPage;
     const endIndex = startIndex + equipmentRowsPerPage;
     return filteredDevices.slice(startIndex, endIndex);
   }, [filteredDevices, equipmentPage, equipmentRowsPerPage]);
 
-  // Вычисляемые значения для пагинации задач
+  // 3. Пагинация задач обслуживания
   const paginatedTasks = useMemo(() => {
     const startIndex = (tasksPage - 1) * tasksRowsPerPage;
     const endIndex = startIndex + tasksRowsPerPage;
@@ -869,7 +864,10 @@ export const AccessSystemPage: React.FC = () => {
   }, [allTasks, tasksPage, tasksRowsPerPage]);
 
   const tasksTotalCount = allTasks.length;
-  const tasksTotalPages = Math.ceil(tasksTotalCount / tasksRowsPerPage);
+
+  const selectedDevice = useMemo(() => {
+    return devices.find((d) => d.id === selectedNode) || filteredDevices[0];
+  }, [devices, selectedNode, filteredDevices]);
 
   // ========== ЭФФЕКТЫ ==========
   useEffect(() => {
@@ -1029,27 +1027,17 @@ export const AccessSystemPage: React.FC = () => {
                         ))}
                       </Box>
 
-                      {filteredDevices.length > schemeItemsPerPage && (
-                        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 2, pt: 2, borderTop: "1px solid #e0e0e0" }}>
-                          <IconButton onClick={() => setSchemePage(1)} disabled={schemePage === 1} size="small">
-                            <FirstPage />
-                          </IconButton>
-                          <IconButton onClick={() => setSchemePage(prev => Math.max(1, prev - 1))} disabled={schemePage === 1} size="small">
-                            <ChevronLeft />
-                          </IconButton>
-
-                          <Pagination count={totalPages} page={schemePage} onChange={handleSchemePageChange} size="small" siblingCount={1} boundaryCount={1} />
-
-                          <IconButton onClick={() => setSchemePage(prev => Math.min(totalPages, prev + 1))} disabled={schemePage === totalPages} size="small">
-                            <ChevronRight />
-                          </IconButton>
-                          <IconButton onClick={() => setSchemePage(totalPages)} disabled={schemePage === totalPages} size="small">
-                            <LastPage />
-                          </IconButton>
-
-                          <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
-                            Страница {schemePage} из {totalPages}
-                          </Typography>
+                      {/* Пагинация схемы */}
+                      {schemeTotalCount > schemeRowsPerPage && (
+                        <Box sx={{ mt: 'auto', pt: 2, borderTop: '1px solid #e0e0e0' }}>
+                          <ReportPagination
+                            page={schemePage}
+                            rowsPerPage={schemeRowsPerPage}
+                            totalRows={schemeTotalCount}
+                            onPageChange={handleSchemePageChange}
+                            onRowsPerPageChange={() => {}} // Фиксированное количество для схемы
+                            disabled={loading}
+                          />
                         </Box>
                       )}
                     </>
@@ -1236,7 +1224,7 @@ export const AccessSystemPage: React.FC = () => {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>ID</TableCell>
+                    <TableCell>Параметр</TableCell>
                     <TableCell>Наименование</TableCell>
                     <TableCell>Тип</TableCell>
                     <TableCell>Статус</TableCell>
@@ -1286,16 +1274,16 @@ export const AccessSystemPage: React.FC = () => {
               </Table>
             </TableContainer>
 
-            {/* Пагинация */}
+            {/* Пагинация оборудования */}
             {equipmentTotalCount > 0 && (
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 3, pt: 2, borderTop: "1px solid #e0e0e0" }}>
-                <Typography variant="body2" color="text.secondary">
-                  Показано {(equipmentPage - 1) * equipmentRowsPerPage + 1}-
-                  {Math.min(equipmentPage * equipmentRowsPerPage, equipmentTotalCount)} из {equipmentTotalCount} устройств
-                </Typography>
-
-                <Pagination count={Math.ceil(equipmentTotalCount / equipmentRowsPerPage)} page={equipmentPage} onChange={handleEquipmentPageChange} color="primary" showFirstButton showLastButton siblingCount={1} boundaryCount={1} />
-              </Box>
+              <ReportPagination
+                page={equipmentPage}
+                rowsPerPage={equipmentRowsPerPage}
+                totalRows={equipmentTotalCount}
+                onPageChange={handleEquipmentPageChange}
+                onRowsPerPageChange={handleEquipmentRowsPerPageChange}
+                disabled={loading}
+              />
             )}
           </Paper>
         </TabPanel>
@@ -1318,29 +1306,6 @@ export const AccessSystemPage: React.FC = () => {
                 )}
               </Typography>
               <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary">
-                  Показывать:
-                </Typography>
-                <select
-                  value={tasksRowsPerPage}
-                  onChange={handleTasksRowsPerPageChange}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "4px",
-                    border: "1px solid #ccc",
-                    backgroundColor: "white",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    fontSize: "14px",
-                  }}
-                  disabled={tasksLoading || allTasks.length === 0}
-                >
-                  <option value={10}>10 строк</option>
-                  <option value={25}>25 строк</option>
-                  <option value={50}>50 строк</option>
-                  <option value={100}>100 строк</option>
-                </select>
-
                 <Button
                   variant="outlined"
                   startIcon={<Refresh />}
@@ -1501,34 +1466,15 @@ export const AccessSystemPage: React.FC = () => {
                   </Table>
                 </TableContainer>
 
-                {/* Пагинация */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mt: 3,
-                    pt: 2,
-                    borderTop: "1px solid #e0e0e0",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Показано {Math.min((tasksPage - 1) * tasksRowsPerPage + 1, tasksTotalCount)}-
-                    {Math.min(tasksPage * tasksRowsPerPage, tasksTotalCount)} из {tasksTotalCount} задач
-                  </Typography>
-
-                  <Pagination
-                    count={tasksTotalPages}
-                    page={tasksPage}
-                    onChange={handleTasksPageChange}
-                    color="primary"
-                    showFirstButton
-                    showLastButton
-                    siblingCount={1}
-                    boundaryCount={1}
-                    disabled={tasksLoading}
-                  />
-                </Box>
+                {/* Пагинация задач обслуживания */}
+                <ReportPagination
+                  page={tasksPage}
+                  rowsPerPage={tasksRowsPerPage}
+                  totalRows={tasksTotalCount}
+                  onPageChange={handleTasksPageChange}
+                  onRowsPerPageChange={handleTasksRowsPerPageChange}
+                  disabled={tasksLoading}
+                />
 
                 {/* Статистика */}
                 <Paper sx={{ p: 2, mt: 3, bgcolor: 'grey.50' }}>

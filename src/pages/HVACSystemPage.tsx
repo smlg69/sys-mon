@@ -33,7 +33,7 @@ import {
   Snackbar,
   CardHeader,
   Tooltip,
-  Pagination,
+  // Удален импорт Pagination, FirstPage, LastPage, ChevronLeft, ChevronRight
 } from "@mui/material";
 import {
   AcUnit,
@@ -47,10 +47,6 @@ import {
   TrendingDown,
   ArrowUpward,
   ArrowDownward,
-  FirstPage,
-  LastPage,
-  ChevronLeft,
-  ChevronRight,
   CheckCircle,
   Warning as WarningIcon,
   Error as ErrorIcon,
@@ -65,6 +61,8 @@ import {
 } from "@mui/icons-material";
 
 import { apiClient } from "../api/client";
+// Импортируем внешний компонент пагинации
+import { ReportPagination } from "../components/reports/Pagination";
 
 // Типы данных
 interface TemperatureDataPoint {
@@ -125,7 +123,6 @@ interface HTFDataPoint {
   param: string;
 }
 
-// ========== ДОБАВЬТЕ ЭТОТ ИНТЕРФЕЙС ПЕРЕД КОМПОНЕНТОМ ==========
 interface MaintenanceTask {
   id: string;
   task: string;
@@ -384,13 +381,21 @@ const TemperatureChart: React.FC<{
 
 export const HVACSystemPage: React.FC = () => {
   // ========== СОСТОЯНИЯ ==========
-  // ========== ДОБАВЬТЕ ЭТО СОСТОЯНИЕ В КОМПОНЕНТЕ ==========
   const [maintenanceTasks, setMaintenanceTasks] = useState<MaintenanceTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState<boolean>(true);
-  // ========== ПАГИНАЦИЯ В РАСПИСАНИИ ОБСЛУЖИВАНИЯ ==========
+  
+  // ========== ПАГИНАЦИЯ ДЛЯ ВСЕХ ТАБОВ ==========
+  // 1. Пагинация для схемы (3x3)
+  const [schemePage, setSchemePage] = useState<number>(1);
+  const [schemeRowsPerPage] = useState<number>(9); // 3x3 сетка
+  
+  // 2. Пагинация для оборудования
+  const [equipmentPage, setEquipmentPage] = useState<number>(1);
+  const [equipmentRowsPerPage, setEquipmentRowsPerPage] = useState<number>(10);
+  
+  // 3. Пагинация для расписания обслуживания
   const [tasksPage, setTasksPage] = useState<number>(1);
   const [tasksRowsPerPage, setTasksRowsPerPage] = useState<number>(10);
-  const [allTasks, setAllTasks] = useState<MaintenanceTask[]>([]); // Все задачи
 
   const [temperatureData, setTemperatureData] = useState<TemperatureDataPoint[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -400,20 +405,14 @@ export const HVACSystemPage: React.FC = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const [selectedNode, setSelectedNode] = useState<string>("");
   const [pollingActive, setPollingActive] = useState<boolean>(true);
-
   const [devices, setDevices] = useState<Device[]>([]);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage] = useState<number>(9);
   const [wsConnected, setWsConnected] = useState<boolean>(false);
-
   const [equipmentData, setEquipmentData] = useState<Device[]>([]);
   const [equipmentLoading, setEquipmentLoading] = useState<boolean>(true);
-  const [equipmentPage, setEquipmentPage] = useState<number>(1);
-  const [equipmentRowsPerPage, setEquipmentRowsPerPage] = useState<number>(10);
   const [equipmentTotalCount, setEquipmentTotalCount] = useState<number>(0);
+  const [allTasks, setAllTasks] = useState<MaintenanceTask[]>([]);
 
   const lastFetchRef = useRef<Record<string, number>>({});
-
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -536,99 +535,64 @@ export const HVACSystemPage: React.FC = () => {
     }
   };
   
-  // ========== ДОБАВЬТЕ ЭТУ ФУНКЦИЮ ДЛЯ ЗАГРУЗКИ ЗАДАЧ ==========
-const fetchMaintenanceTasks = useCallback(async () => {
-  try {
-    setTasksLoading(true);
-    
-    // Загружаем задачи с бэка
-    const response = await apiClient.get<MaintenanceTask[]>('tblTasks');
-    
-    if (response && Array.isArray(response)) {
-      // Фильтруем задачи, связанные с HVAC устройствами
-      const hvacTasks = response.filter(task => {
-        // Проверяем по типу оборудования
-        const taskType = (task.type || '').toLowerCase();
-        const taskDevice = (task.device || '').toLowerCase();
-        
-        return taskType.includes('насос') || 
-               taskType.includes('теплов') ||
-               taskType.includes('вентиля') ||
-               taskType.includes('котел') ||
-               taskType.includes('бойлер') ||
-               taskDevice.includes('насос') ||
-               taskDevice.includes('теплов') ||
-               taskDevice.includes('вентиля');
-      });
+  const fetchMaintenanceTasks = useCallback(async () => {
+    try {
+      setTasksLoading(true);
       
-      // Сохраняем все задачи
-      setAllTasks(hvacTasks);
-      // Для пагинации сохраняем отфильтрованные задачи в отдельное состояние
-      setMaintenanceTasks(hvacTasks);
-    } else {
+      const response = await apiClient.get<MaintenanceTask[]>('tblTasks');
+      
+      if (response && Array.isArray(response)) {
+        const hvacTasks = response.filter(task => {
+          const taskType = (task.type || '').toLowerCase();
+          const taskDevice = (task.device || '').toLowerCase();
+          
+          return taskType.includes('насос') || 
+                 taskType.includes('теплов') ||
+                 taskType.includes('вентиля') ||
+                 taskType.includes('котел') ||
+                 taskType.includes('бойлер') ||
+                 taskDevice.includes('насос') ||
+                 taskDevice.includes('теплов') ||
+                 taskDevice.includes('вентиля');
+        });
+        
+        setAllTasks(hvacTasks);
+        setMaintenanceTasks(hvacTasks);
+      } else {
+        setAllTasks([]);
+        setMaintenanceTasks([]);
+      }
+    } catch (err: any) {
+      console.error("Ошибка загрузки задач обслуживания:", err);
+      setSnackbar({
+        open: true,
+        message: "Ошибка загрузки данных обслуживания",
+        severity: "error",
+      });
       setAllTasks([]);
       setMaintenanceTasks([]);
+    } finally {
+      setTasksLoading(false);
     }
-  } catch (err: any) {
-    console.error("Ошибка загрузки задач обслуживания:", err);
-    setSnackbar({
-      open: true,
-      message: "Ошибка загрузки данных обслуживания",
-      severity: "error",
-    });
-    setAllTasks([]);
-    setMaintenanceTasks([]);
-  } finally {
-    setTasksLoading(false);
-  }
-}, []);
+  }, []);
 
-  // ========== ПАГИНАЦИЯ В РАСПИСАНИИ ОБОРУДОВАНИЯ ====
-  // ========== ФУНКЦИЯ ДЛЯ ИЗМЕНЕНИЯ КОЛИЧЕСТВА СТРОК ==========
-const handleTasksRowsPerPageChange = (
-  event: React.ChangeEvent<HTMLSelectElement>
-) => {
-  const newRowsPerPage = parseInt(event.target.value, 10);
-  setTasksRowsPerPage(newRowsPerPage);
-  setTasksPage(1); // Сбрасываем на первую страницу при изменении количества строк
-};
-
-// ========== ФУНКЦИЯ ДЛЯ ИЗМЕНЕНИЯ СТРАНИЦЫ ==========
-const handleTasksPageChange = (
-  event: React.ChangeEvent<unknown>,
-  page: number
-) => {
-  setTasksPage(page);
-};
-
-// ========== ВЫЧИСЛЯЕМЫЕ ЗНАЧЕНИЯ ДЛЯ ПАГИНАЦИИ ==========
-const paginatedTasks = useMemo(() => {
-  const startIndex = (tasksPage - 1) * tasksRowsPerPage;
-  const endIndex = startIndex + tasksRowsPerPage;
-  return allTasks.slice(startIndex, endIndex);
-}, [allTasks, tasksPage, tasksRowsPerPage]);
-
-const tasksTotalCount = allTasks.length;
-const tasksTotalPages = Math.ceil(tasksTotalCount / tasksRowsPerPage);
-
-  // ========== ФУНКЦИЯ ДЛЯ ОБРАБОТКИ СТАТУСА ==========
-const getTaskStatusInfo = (action: string) => {
-  const actionLower = action.toLowerCase();
-  
-  if (actionLower.includes('выполнено') || actionLower.includes('завершено')) {
-    return { label: 'Выполнено', color: 'success' as const };
-  } else if (actionLower.includes('запланировано') || actionLower.includes('план')) {
-    return { label: 'Запланировано', color: 'info' as const };
-  } else if (actionLower.includes('задерж') || actionLower.includes('отложен')) {
-    return { label: 'Задержка', color: 'warning' as const };
-  } else if (actionLower.includes('отмен') || actionLower.includes('отклонен')) {
-    return { label: 'Отменено', color: 'error' as const };
-  } else if (actionLower.includes('в работе') || actionLower.includes('выполняется')) {
-    return { label: 'В работе', color: 'primary' as const };
-  } else {
-    return { label: action, color: 'default' as const };
-  }
-};
+  const getTaskStatusInfo = (action: string) => {
+    const actionLower = action.toLowerCase();
+    
+    if (actionLower.includes('выполнено') || actionLower.includes('завершено')) {
+      return { label: 'Выполнено', color: 'success' as const };
+    } else if (actionLower.includes('запланировано') || actionLower.includes('план')) {
+      return { label: 'Запланировано', color: 'info' as const };
+    } else if (actionLower.includes('задерж') || actionLower.includes('отложен')) {
+      return { label: 'Задержка', color: 'warning' as const };
+    } else if (actionLower.includes('отмен') || actionLower.includes('отклонен')) {
+      return { label: 'Отменено', color: 'error' as const };
+    } else if (actionLower.includes('в работе') || actionLower.includes('выполняется')) {
+      return { label: 'В работе', color: 'primary' as const };
+    } else {
+      return { label: action, color: 'default' as const };
+    }
+  };
 
   const mapDeviceType = (deviceType: string): string => {
     if (!deviceType) return "sensor";
@@ -930,7 +894,7 @@ const getTaskStatusInfo = (action: string) => {
       setSnackbar({
         open: true,
         message: `Ошибка загрузки графика: ${error.message}`,
-        severity: 'error'
+        severity: 'error',
       });
     } finally {
       setRefreshing(false);
@@ -957,10 +921,9 @@ const getTaskStatusInfo = (action: string) => {
             hvacCount++;
             
             const deviceType = mapDeviceType(
-              device.type ||
-              device.description ||
-              device.name ||
-              "sensor"
+              device.type || device.description || device.name ||
+              "Насосное оборудование" || "Тепловой узел" || "Вентияция" || 
+              "Датчик температуры" || "Клапан"
             );
 
             let status: "normal" | "warning" | "critical" = "normal";
@@ -1408,35 +1371,56 @@ const getTaskStatusInfo = (action: string) => {
     setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
-  const handlePageChange = (
-    event: React.ChangeEvent<unknown>,
-    page: number
-  ) => {
-    setCurrentPage(page);
+  // ========== ОБРАБОТЧИКИ ПАГИНАЦИИ С ИСПОЛЬЗОВАНИЕМ ВНЕШНЕГО КОМПОНЕНТА ==========
+  // 1. Пагинация схемы (3x3)
+  const handleSchemePageChange = (newPage: number) => {
+    setSchemePage(newPage);
   };
 
-  const handleEquipmentPageChange = (
-    event: React.ChangeEvent<unknown>,
-    page: number
-  ) => {
-    setEquipmentPage(page);
+  // 2. Пагинация оборудования
+  const handleEquipmentPageChange = (newPage: number) => {
+    setEquipmentPage(newPage);
   };
 
-  const handleEquipmentRowsPerPageChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    setEquipmentRowsPerPage(parseInt(event.target.value, 10));
+  const handleEquipmentRowsPerPageChange = (newRowsPerPage: number) => {
+    setEquipmentRowsPerPage(newRowsPerPage);
     setEquipmentPage(1);
   };
 
-  // ========== ВЫЧИСЛЯЕМЫЕ ЗНАЧЕНИЯ ==========
-  const paginatedDevices = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return devices.slice(startIndex, endIndex);
-  }, [devices, currentPage, itemsPerPage]);
+  // 3. Пагинация расписания обслуживания
+  const handleTasksPageChange = (newPage: number) => {
+    setTasksPage(newPage);
+  };
 
-  const totalPages = Math.ceil(devices.length / itemsPerPage);
+  const handleTasksRowsPerPageChange = (newRowsPerPage: number) => {
+    setTasksRowsPerPage(newRowsPerPage);
+    setTasksPage(1);
+  };
+
+  // ========== ВЫЧИСЛЯЕМЫЕ ЗНАЧЕНИЯ ==========
+  // 1. Пагинация схемы
+  const schemeTotalCount = devices.length;
+  const schemeTotalPages = Math.ceil(schemeTotalCount / schemeRowsPerPage);
+  const paginatedDevices = useMemo(() => {
+    const startIndex = (schemePage - 1) * schemeRowsPerPage;
+    const endIndex = startIndex + schemeRowsPerPage;
+    return devices.slice(startIndex, endIndex);
+  }, [devices, schemePage, schemeRowsPerPage]);
+
+  // 2. Пагинация оборудования
+  const paginatedEquipment = useMemo(() => {
+    const startIndex = (equipmentPage - 1) * equipmentRowsPerPage;
+    const endIndex = startIndex + equipmentRowsPerPage;
+    return equipmentData.slice(startIndex, endIndex);
+  }, [equipmentData, equipmentPage, equipmentRowsPerPage]);
+
+  // 3. Пагинация расписания
+  const paginatedTasks = useMemo(() => {
+    const startIndex = (tasksPage - 1) * tasksRowsPerPage;
+    const endIndex = startIndex + tasksRowsPerPage;
+    return allTasks.slice(startIndex, endIndex);
+  }, [allTasks, tasksPage, tasksRowsPerPage]);
+  const tasksTotalCount = allTasks.length;
 
   const selectedDevice = useMemo(() => {
     return devices.find((d) => d.id === selectedNode) || paginatedDevices[0];
@@ -1468,10 +1452,9 @@ const getTaskStatusInfo = (action: string) => {
     };
   }, [selectedNode, fetchCurrentValues]);
 
-  // ========== ДОБАВЬТЕ ЭТОТ ЭФФЕКТ ДЛЯ ЗАГРУЗКИ ЗАДАЧ ==========
-useEffect(() => {
-  fetchMaintenanceTasks();
-}, [fetchMaintenanceTasks]);
+  useEffect(() => {
+    fetchMaintenanceTasks();
+  }, [fetchMaintenanceTasks]);
 
   // ========== РЕНДЕР ==========
   return (
@@ -1763,70 +1746,17 @@ useEffect(() => {
                         ))}
                       </Box>
 
-                      {/* Пагинация */}
-                      {devices.length > itemsPerPage && (
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            gap: 2,
-                            pt: 2,
-                            borderTop: "1px solid #e0e0e0",
-                          }}
-                        >
-                          <IconButton
-                            onClick={() => setCurrentPage(1)}
-                            disabled={currentPage === 1}
-                            size="small"
-                          >
-                            <FirstPage />
-                          </IconButton>
-                          <IconButton
-                            onClick={() =>
-                              setCurrentPage((prev) => Math.max(1, prev - 1))
-                            }
-                            disabled={currentPage === 1}
-                            size="small"
-                          >
-                            <ChevronLeft />
-                          </IconButton>
-
-                          <Pagination
-                            count={totalPages}
-                            page={currentPage}
-                            onChange={handlePageChange}
-                            size="small"
-                            siblingCount={1}
-                            boundaryCount={1}
+                      {/* Пагинация схемы */}
+                      {schemeTotalCount > schemeRowsPerPage && (
+                        <Box sx={{ mt: 'auto', pt: 2, borderTop: '1px solid #e0e0e0' }}>
+                          <ReportPagination
+                            page={schemePage}
+                            rowsPerPage={schemeRowsPerPage}
+                            totalRows={schemeTotalCount}
+                            onPageChange={handleSchemePageChange}
+                            onRowsPerPageChange={() => {}} // Для схемы фиксированное количество строк
+                            disabled={loading}
                           />
-
-                          <IconButton
-                            onClick={() =>
-                              setCurrentPage((prev) =>
-                                Math.min(totalPages, prev + 1)
-                              )
-                            }
-                            disabled={currentPage === totalPages}
-                            size="small"
-                          >
-                            <ChevronRight />
-                          </IconButton>
-                          <IconButton
-                            onClick={() => setCurrentPage(totalPages)}
-                            disabled={currentPage === totalPages}
-                            size="small"
-                          >
-                            <LastPage />
-                          </IconButton>
-
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ ml: 2 }}
-                          >
-                            Страница {currentPage} из {totalPages}
-                          </Typography>
                         </Box>
                       )}
                     </>
@@ -1879,89 +1809,89 @@ useEffect(() => {
                       flexDirection: "column",
                     }}
                   >
-<CardHeader
-  title={
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-      <ShowChart color="primary" />
-      <Typography variant="h6">
-        {selectedDevice?.name || "Температура"} - Мониторинг
-      </Typography>
-      {refreshing && <CircularProgress size={20} />}
-    </Box>
-  }
-  subheader={
-    <Box>
-      <Typography variant="caption">
-        Обновлено: {lastUpdate}
-      </Typography>
-      {temperatureData.length > 0 && (
-        <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-          Точек: {temperatureData.length} • 
-          От {temperatureData[0]?.timestamp?.substring(11, 19)} до {temperatureData[temperatureData.length - 1]?.timestamp?.substring(11, 19)}
-        </Typography>
-      )}
-    </Box>
-  }
-  action={
-    <Box sx={{ display: 'flex', gap: 1 }}>
-<Tooltip title="Проверить данные устройства">
-  <IconButton
-    onClick={async () => {
-      const device = devices.find(d => d.id === selectedNode);
-      if (device?.param) {
-        console.log(`🧪 Тест устройства: ${device.name} (${device.param})`);
-        
-        const prefix = device.param.replace(/\d+/g, '');
-        console.log(`🎯 Префикс: ${prefix}`);
-        
-        const data = await fetchFromGetDevicesHTF(device.param);
-        
-        if (data.length > 0) {
-          console.log(`✅ Найдено ${data.length} точек`);
-          console.log('📊 Первые 3 точки:', data.slice(0, 3));
-        } else {
-          console.log(`❌ Нет данных для ${device.param}`);
-          
-          setSnackbar({
-            open: true,
-            message: `Нет исторических данных для ${device.name}`,
-            severity: 'warning'
-          });
-        }
-      }
-    }}
-    size="small"
-  >
-    <Visibility />
-  </IconButton>
-</Tooltip>
+                    <CardHeader
+                      title={
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <ShowChart color="primary" />
+                          <Typography variant="h6">
+                            {selectedDevice?.name || "Температура"} - Мониторинг
+                          </Typography>
+                          {refreshing && <CircularProgress size={20} />}
+                        </Box>
+                      }
+                      subheader={
+                        <Box>
+                          <Typography variant="caption">
+                            Обновлено: {lastUpdate}
+                          </Typography>
+                          {temperatureData.length > 0 && (
+                            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                              Точек: {temperatureData.length} • 
+                              От {temperatureData[0]?.timestamp?.substring(11, 19)} до {temperatureData[temperatureData.length - 1]?.timestamp?.substring(11, 19)}
+                            </Typography>
+                          )}
+                        </Box>
+                      }
+                      action={
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Tooltip title="Проверить данные устройства">
+                            <IconButton
+                              onClick={async () => {
+                                const device = devices.find(d => d.id === selectedNode);
+                                if (device?.param) {
+                                  console.log(`🧪 Тест устройства: ${device.name} (${device.param})`);
+                                  
+                                  const prefix = device.param.replace(/\d+/g, '');
+                                  console.log(`🎯 Префикс: ${prefix}`);
+                                  
+                                  const data = await fetchFromGetDevicesHTF(device.param);
+                                  
+                                  if (data.length > 0) {
+                                    console.log(`✅ Найдено ${data.length} точек`);
+                                    console.log('📊 Первые 3 точки:', data.slice(0, 3));
+                                  } else {
+                                    console.log(`❌ Нет данных для ${device.param}`);
+                                    
+                                    setSnackbar({
+                                      open: true,
+                                      message: `Нет исторических данных для ${device.name}`,
+                                      severity: 'warning'
+                                    });
+                                  }
+                                }
+                              }}
+                              size="small"
+                            >
+                              <Visibility />
+                            </IconButton>
+                          </Tooltip>
 
-      <Tooltip title="Отладка данных">
-        <IconButton
-          onClick={async () => {
-            const device = devices.find((d) => d.id === selectedNode);
-            if (device?.param) {
-              console.log('🔍 Отладка данных для:', device.param);
-              await fetchFromGetDevicesHTF(device.param);
-            }
-          }}
-          size="small"
-        >
-          <Build />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title="Обновить данные">
-        <IconButton
-          onClick={updateChartData}
-          disabled={refreshing || !selectedNode}
-          size="small"
-        >
-          <Refresh />
-        </IconButton>
-      </Tooltip>
-    </Box>
-  }
-/>
+                          <Tooltip title="Отладка данных">
+                            <IconButton
+                              onClick={async () => {
+                                const device = devices.find((d) => d.id === selectedNode);
+                                if (device?.param) {
+                                  console.log('🔍 Отладка данных для:', device.param);
+                                  await fetchFromGetDevicesHTF(device.param);
+                                }
+                              }}
+                              size="small"
+                            >
+                              <Build />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Обновить данные">
+                            <IconButton
+                              onClick={updateChartData}
+                              disabled={refreshing || !selectedNode}
+                              size="small"
+                            >
+                              <Refresh />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      }
+                    />
                     <CardContent sx={{ flex: 1, p: 2 }}>
                       <Box sx={{ height: "250px", width: "100%" }}>
                         <TemperatureChart
@@ -2116,7 +2046,7 @@ useEffect(() => {
                                 Группа
                               </Typography>
                               <Typography variant="body2">
-                                {selectedDevice.group || "Не указана"}
+                                {selectedDevice.group || "Не указано"}
                               </Typography>
                             </Grid>
                             <Grid item xs={6}>
@@ -2205,7 +2135,7 @@ useEffect(() => {
                             color="text.secondary"
                             align="center"
                           >
-                            Нажмите на любой элемент схемы для просмотра
+                            Нажмите на любой элемент схеме для просмотра
                             подробной информации
                           </Typography>
                         </Box>
@@ -2236,28 +2166,6 @@ useEffect(() => {
                 )}
               </Typography>
               <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary">
-                  Показывать:
-                </Typography>
-                <select
-                  value={equipmentRowsPerPage}
-                  onChange={handleEquipmentRowsPerPageChange}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "4px",
-                    border: "1px solid #ccc",
-                    backgroundColor: "white",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    fontSize: "14px",
-                  }}
-                >
-                  <option value={10}>10 строк</option>
-                  <option value={25}>25 строк</option>
-                  <option value={50}>50 строк</option>
-                  <option value={100}>100 строк</option>
-                </select>
-
                 <Button
                   variant="outlined"
                   startIcon={<Refresh />}
@@ -2273,19 +2181,19 @@ useEffect(() => {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>ID</TableCell>
+                    <TableCell>Номер</TableCell>
                     <TableCell>Наименование</TableCell>
                     <TableCell>Тип</TableCell>
                     <TableCell>Статус</TableCell>
-                    <TableCell>Температура</TableCell>
+                    <TableCell>Параметр</TableCell>
                     <TableCell>Группа</TableCell>
                     <TableCell>Местоположение</TableCell>
                     <TableCell>Последнее обновление</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {equipmentData.length > 0 ? (
-                    equipmentData.map((device) => (
+                  {paginatedEquipment.length > 0 ? (
+                    paginatedEquipment.map((device) => (
                       <TableRow
                         key={device.id}
                         hover
@@ -2306,16 +2214,16 @@ useEffect(() => {
                           />
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body1" fontWeight="medium">
-                            {device.name}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
                           <Chip
-                            label={device.type}
+                            label={device.name}
                             size="small"
                             variant="outlined"
                           />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body1" fontWeight="medium">
+                            {device.name}
+                          </Typography>
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -2332,15 +2240,11 @@ useEffect(() => {
                           />
                         </TableCell>
                         <TableCell>
-                          {device.temperature !== undefined ? (
-                            <Typography variant="body2" fontWeight="bold">
-                              {device.temperature.toFixed(1)}°C
-                            </Typography>
-                          ) : (
-                            <Typography variant="body2" color="text.secondary">
-                              Н/Д
-                            </Typography>
-                          )}
+                          <Chip
+                            label={device.id}
+                            size="small"
+                            variant="outlined"
+                          />
                         </TableCell>
                         <TableCell>{device.group || "Не указана"}</TableCell>
                         <TableCell>{device.location || "Не указано"}</TableCell>
@@ -2386,323 +2290,258 @@ useEffect(() => {
               </Table>
             </TableContainer>
 
-            {/* Пагинация */}
+            {/* Пагинация оборудования */}
             {equipmentTotalCount > 0 && (
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  mt: 3,
-                  pt: 2,
-                  borderTop: "1px solid #e0e0e0",
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Показано {(equipmentPage - 1) * equipmentRowsPerPage + 1}-
-                  {Math.min(
-                    equipmentPage * equipmentRowsPerPage,
-                    equipmentTotalCount
-                  )}{" "}
-                  из {equipmentTotalCount} устройств
-                </Typography>
-
-                <Pagination
-                  count={Math.ceil(equipmentTotalCount / equipmentRowsPerPage)}
-                  page={equipmentPage}
-                  onChange={handleEquipmentPageChange}
-                  color="primary"
-                  showFirstButton
-                  showLastButton
-                  siblingCount={1}
-                  boundaryCount={1}
-                />
-              </Box>
+              <ReportPagination
+                page={equipmentPage}
+                rowsPerPage={equipmentRowsPerPage}
+                totalRows={equipmentTotalCount}
+                onPageChange={handleEquipmentPageChange}
+                onRowsPerPageChange={handleEquipmentRowsPerPageChange}
+                disabled={equipmentLoading}
+              />
             )}
           </Paper>
         </TabPanel>
 
         {/* Вкладка Расписание обслуживания */}
         <TabPanel value={currentTab} index={2}>
-  <Paper sx={{ p: 3 }}>
-    <Box
-      sx={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        mb: 3,
-      }}
-    >
-      <Typography variant="h5">
-        Расписание обслуживания
-        {tasksLoading && (
-          <CircularProgress size={20} sx={{ ml: 2 }} />
-        )}
-      </Typography>
-      <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-        <Typography variant="body2" color="text.secondary">
-          Показывать:
-        </Typography>
-        <select
-          value={tasksRowsPerPage}
-          onChange={handleTasksRowsPerPageChange}
-          style={{
-            padding: "6px 12px",
-            borderRadius: "4px",
-            border: "1px solid #ccc",
-            backgroundColor: "white",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontSize: "14px",
-          }}
-          disabled={tasksLoading || allTasks.length === 0}
-        >
-          <option value={10}>10 строк</option>
-          <option value={25}>25 строк</option>
-          <option value={50}>50 строк</option>
-          <option value={100}>100 строк</option>
-        </select>
-
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={fetchMaintenanceTasks}
-          disabled={tasksLoading}
-        >
-          Обновить
-        </Button>
-      </Box>
-    </Box>
-
-    {allTasks.length === 0 ? (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          py: 6,
-          textAlign: "center",
-        }}
-      >
-        {tasksLoading ? (
-          <>
-            <CircularProgress size={40} sx={{ mb: 2 }} />
-            <Typography>Загрузка данных обслуживания...</Typography>
-          </>
-        ) : (
-          <>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              Нет задач обслуживания
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Задачи обслуживания для HVAC оборудования не найдены
-            </Typography>
-            <Button
-              variant="outlined"
-              startIcon={<Refresh />}
-              onClick={fetchMaintenanceTasks}
-              sx={{ mt: 2 }}
+          <Paper sx={{ p: 3 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 3,
+              }}
             >
-              Попробовать снова
-            </Button>
-          </>
-        )}
-      </Box>
-    ) : (
-      <>
-        <TableContainer component={Paper} variant="outlined">
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>ID</TableCell>
-                <TableCell>Оборудование</TableCell>
-                <TableCell>Тип оборудования</TableCell>
-                <TableCell>Тип работы</TableCell>
-                <TableCell>Планируемая дата</TableCell>
-                <TableCell>Статус</TableCell>
-                <TableCell>Ответственный</TableCell>
-                <TableCell>Факт. дата</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {paginatedTasks.map((task) => {
-                const statusInfo = getTaskStatusInfo(task.action);
-                const plannedDate = new Date(task.taskDate);
-                const isOverdue = task.realDate === null && plannedDate < new Date();
-                
-                // Находим соответствующее устройство для отображения температуры
-                const relatedDevice = devices.find(d => 
-                  d.name?.toLowerCase().includes(task.device.toLowerCase()) ||
-                  task.device.toLowerCase().includes(d.name?.toLowerCase() || '')
-                );
-                
-                return (
-                  <TableRow 
-                    key={task.id} 
-                    hover
-                    sx={{
-                      cursor: "pointer",
-                      backgroundColor: isOverdue ? '#fff8e1' : 'inherit',
-                      '&:hover': { backgroundColor: isOverdue ? '#fff5d6' : 'action.hover' },
-                    }}
-                  >
-                    <TableCell>
-                      <Chip
-                        label={`#${task.id}`}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        {relatedDevice && (
-                          <Avatar
+              <Typography variant="h5">
+                Расписание обслуживания
+                {tasksLoading && (
+                  <CircularProgress size={20} sx={{ ml: 2 }} />
+                )}
+              </Typography>
+              <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<Refresh />}
+                  onClick={fetchMaintenanceTasks}
+                  disabled={tasksLoading}
+                >
+                  Обновить
+                </Button>
+              </Box>
+            </Box>
+
+            {allTasks.length === 0 ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  py: 6,
+                  textAlign: "center",
+                }}
+              >
+                {tasksLoading ? (
+                  <>
+                    <CircularProgress size={40} sx={{ mb: 2 }} />
+                    <Typography>Загрузка данных обслуживания...</Typography>
+                  </>
+                ) : (
+                  <>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      Нет задач обслуживания
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Задачи обслуживания для HVAC оборудования не найдены
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Refresh />}
+                      onClick={fetchMaintenanceTasks}
+                      sx={{ mt: 2 }}
+                    >
+                      Попробовать снова
+                    </Button>
+                  </>
+                )}
+              </Box>
+            ) : (
+              <>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>ID</TableCell>
+                        <TableCell>Оборудование</TableCell>
+                        <TableCell>Тип оборудования</TableCell>
+                        <TableCell>Тип работы</TableCell>
+                        <TableCell>Планируемая дата</TableCell>
+                        <TableCell>Статус</TableCell>
+                        <TableCell>Ответственный</TableCell>
+                        <TableCell>Факт. дата</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {paginatedTasks.map((task) => {
+                        const statusInfo = getTaskStatusInfo(task.action);
+                        const plannedDate = new Date(task.taskDate);
+                        const isOverdue = task.realDate === null && plannedDate < new Date();
+                        
+                        const relatedDevice = devices.find(d => 
+                          d.name?.toLowerCase().includes(task.device.toLowerCase()) ||
+                          task.device.toLowerCase().includes(d.name?.toLowerCase() || '')
+                        );
+                        
+                        return (
+                          <TableRow 
+                            key={task.id} 
+                            hover
                             sx={{
-                              width: 32,
-                              height: 32,
-                              bgcolor: `${getStatusColor(relatedDevice.status)}.light`,
+                              cursor: "pointer",
+                              backgroundColor: isOverdue ? '#fff8e1' : 'inherit',
+                              '&:hover': { backgroundColor: isOverdue ? '#fff5d6' : 'action.hover' },
                             }}
                           >
-                            {getNodeIcon(relatedDevice.type)}
-                          </Avatar>
-                        )}
-                        <Typography variant="body1">
-                          {task.device}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={task.type}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell>{task.task}</TableCell>
-                    <TableCell>
-                      <Box>
-                        <Typography variant="body2">
-                          {plannedDate.toLocaleDateString("ru-RU")}
+                            <TableCell>
+                              <Chip
+                                label={`#${task.id}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {relatedDevice && (
+                                  <Avatar
+                                    sx={{
+                                      width: 32,
+                                      height: 32,
+                                      bgcolor: `${getStatusColor(relatedDevice.status)}.light`,
+                                    }}
+                                  >
+                                    {getNodeIcon(relatedDevice.type)}
+                                  </Avatar>
+                                )}
+                                <Typography variant="body1">
+                                  {task.device}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={task.type}
+                                size="small"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>{task.task}</TableCell>
+                            <TableCell>
+                              <Box>
+                                <Typography variant="body2">
+                                  {plannedDate.toLocaleDateString("ru-RU")}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {plannedDate.toLocaleTimeString("ru-RU", {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </Typography>
+                                {isOverdue && (
+                                  <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                                    Просрочено
+                                  </Typography>
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={statusInfo.label}
+                                color={statusInfo.color}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>{task.user}</TableCell>
+                            <TableCell>
+                              {task.realDate ? (
+                                <Typography variant="body2">
+                                  {new Date(task.realDate).toLocaleDateString("ru-RU")}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                                  Не выполнено
+                                </Typography>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Пагинация расписания обслуживания */}
+                <ReportPagination
+                  page={tasksPage}
+                  rowsPerPage={tasksRowsPerPage}
+                  totalRows={tasksTotalCount}
+                  onPageChange={handleTasksPageChange}
+                  onRowsPerPageChange={handleTasksRowsPerPageChange}
+                  disabled={tasksLoading}
+                />
+
+                {/* Статистика */}
+                <Paper sx={{ p: 2, mt: 3, bgcolor: 'grey.50' }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h6" color="primary">
+                          {tasksTotalCount}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {plannedDate.toLocaleTimeString("ru-RU", {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          Всего задач
                         </Typography>
-                        {isOverdue && (
-                          <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
-                            Просрочено
-                          </Typography>
-                        )}
                       </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={statusInfo.label}
-                        color={statusInfo.color}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>{task.user}</TableCell>
-                    <TableCell>
-                      {task.realDate ? (
-                        <Typography variant="body2">
-                          {new Date(task.realDate).toLocaleDateString("ru-RU")}
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h6" color="success.main">
+                          {allTasks.filter(t => t.action.toLowerCase().includes('выполнено')).length}
                         </Typography>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                          Не выполнено
+                        <Typography variant="caption" color="text.secondary">
+                          Выполнено
                         </Typography>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        {/* Пагинация */}
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            mt: 3,
-            pt: 2,
-            borderTop: "1px solid #e0e0e0",
-          }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            Показано {Math.min((tasksPage - 1) * tasksRowsPerPage + 1, tasksTotalCount)}-
-            {Math.min(tasksPage * tasksRowsPerPage, tasksTotalCount)} из {tasksTotalCount} задач
-          </Typography>
-
-          <Pagination
-            count={tasksTotalPages}
-            page={tasksPage}
-            onChange={handleTasksPageChange}
-            color="primary"
-            showFirstButton
-            showLastButton
-            siblingCount={1}
-            boundaryCount={1}
-            disabled={tasksLoading}
-          />
-        </Box>
-
-        {/* Статистика */}
-        <Paper sx={{ p: 2, mt: 3, bgcolor: 'grey.50' }}>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="primary">
-                  {tasksTotalCount}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Всего задач
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="success.main">
-                  {allTasks.filter(t => t.action.toLowerCase().includes('выполнено')).length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Выполнено
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="info.main">
-                  {allTasks.filter(t => t.action.toLowerCase().includes('запланировано')).length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Запланировано
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="h6" color="warning.main">
-                  {allTasks.filter(t => 
-                    t.realDate === null && new Date(t.taskDate) < new Date()
-                  ).length}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Просрочено
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        </Paper>
-      </>
-    )}
-  </Paper>
-</TabPanel>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h6" color="info.main">
+                          {allTasks.filter(t => t.action.toLowerCase().includes('запланировано')).length}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Запланировано
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h6" color="warning.main">
+                          {allTasks.filter(t => 
+                            t.realDate === null && new Date(t.taskDate) < new Date()
+                          ).length}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Просрочено
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </>
+            )}
+          </Paper>
+        </TabPanel>
       </Box>
 
       {/* Снекбар */}

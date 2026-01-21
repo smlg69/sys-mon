@@ -62,6 +62,7 @@ import {
   Build as BuildIcon,
 } from "@mui/icons-material";
 import { apiClient } from "../api/client";
+import { ReportPagination } from "../components/reports/Pagination";
 
 // Интерфейсы данных
 interface CCTVDevice {
@@ -778,22 +779,6 @@ export const CCTVSystemPage: React.FC = () => {
     setEquipmentPage(1);
   };
 
-  // Обработчики для пагинации задач
-  const handleTasksRowsPerPageChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const newRowsPerPage = parseInt(event.target.value, 10);
-    setTasksRowsPerPage(newRowsPerPage);
-    setTasksPage(1);
-  };
-
-  const handleTasksPageChange = (
-    event: React.ChangeEvent<unknown>,
-    page: number
-  ) => {
-    setTasksPage(page);
-  };
-
   // ========== ВЫЧИСЛЯЕМЫЕ ЗНАЧЕНИЯ ==========
   const paginatedDevices = useMemo(() => {
     const startIndex = (schemePage - 1) * schemeItemsPerPage;
@@ -1284,7 +1269,7 @@ export const CCTVSystemPage: React.FC = () => {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>ID</TableCell>
+                    <TableCell>Параметр</TableCell>
                     <TableCell>Наименование</TableCell>
                     <TableCell>Тип</TableCell>
                     <TableCell>Статус</TableCell>
@@ -1336,15 +1321,15 @@ export const CCTVSystemPage: React.FC = () => {
 
             {/* Пагинация */}
             {equipmentTotalCount > 0 && (
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 3, pt: 2, borderTop: "1px solid #e0e0e0" }}>
-                <Typography variant="body2" color="text.secondary">
-                  Показано {(equipmentPage - 1) * equipmentRowsPerPage + 1}-
-                  {Math.min(equipmentPage * equipmentRowsPerPage, equipmentTotalCount)} из {equipmentTotalCount} устройств
-                </Typography>
-
-                <Pagination count={Math.ceil(equipmentTotalCount / equipmentRowsPerPage)} page={equipmentPage} onChange={handleEquipmentPageChange} color="primary" showFirstButton showLastButton siblingCount={1} boundaryCount={1} />
-              </Box>
-            )}
+  <ReportPagination
+    page={equipmentPage}
+    rowsPerPage={equipmentRowsPerPage}
+    totalRows={equipmentTotalCount}
+    onPageChange={(page) => setEquipmentPage(page)}
+    onRowsPerPageChange={(rowsPerPage) => setEquipmentRowsPerPage(rowsPerPage)}
+    disabled={loading}
+  />
+)}
           </Paper>
         </TabPanel>
 
@@ -1366,28 +1351,6 @@ export const CCTVSystemPage: React.FC = () => {
                 )}
               </Typography>
               <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-                <Typography variant="body2" color="text.secondary">
-                  Показывать:
-                </Typography>
-                <select
-                  value={tasksRowsPerPage}
-                  onChange={handleTasksRowsPerPageChange}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "4px",
-                    border: "1px solid #ccc",
-                    backgroundColor: "white",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    fontSize: "14px",
-                  }}
-                  disabled={tasksLoading || allTasks.length === 0}
-                >
-                  <option value={10}>10 строк</option>
-                  <option value={25}>25 строк</option>
-                  <option value={50}>50 строк</option>
-                  <option value={100}>100 строк</option>
-                </select>
 
                 <Button
                   variant="outlined"
@@ -1550,33 +1513,16 @@ export const CCTVSystemPage: React.FC = () => {
                 </TableContainer>
 
                 {/* Пагинация */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mt: 3,
-                    pt: 2,
-                    borderTop: "1px solid #e0e0e0",
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Показано {Math.min((tasksPage - 1) * tasksRowsPerPage + 1, tasksTotalCount)}-
-                    {Math.min(tasksPage * tasksRowsPerPage, tasksTotalCount)} из {tasksTotalCount} задач
-                  </Typography>
-
-                  <Pagination
-                    count={tasksTotalPages}
-                    page={tasksPage}
-                    onChange={handleTasksPageChange}
-                    color="primary"
-                    showFirstButton
-                    showLastButton
-                    siblingCount={1}
-                    boundaryCount={1}
-                    disabled={tasksLoading}
-                  />
-                </Box>
+                {allTasks.length > 0 && (
+  <ReportPagination
+    page={tasksPage}
+    rowsPerPage={tasksRowsPerPage}
+    totalRows={tasksTotalCount}
+    onPageChange={(page) => setTasksPage(page)}
+    onRowsPerPageChange={(rowsPerPage) => setTasksRowsPerPage(rowsPerPage)}
+    disabled={tasksLoading}
+  />
+)}
 
                 {/* Статистика */}
                 <Paper sx={{ p: 2, mt: 3, bgcolor: 'grey.50' }}>

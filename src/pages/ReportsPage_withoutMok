@@ -1,5 +1,5 @@
 // pages/ReportsPage.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Paper,
@@ -30,6 +30,7 @@ import {
   Radio,
   FormLabel,
   FormControlLabel,
+  IconButton,
 } from "@mui/material";
 import {
   Assessment,
@@ -43,6 +44,7 @@ import {
   Print,
   CalendarMonth,
   DateRange,
+  Refresh,
 } from "@mui/icons-material";
 
 // Импортируем функции генерации отчетов
@@ -51,8 +53,22 @@ import { generatePdfReport } from "../components/reports/CreateReportPdf";
 // Импортируем компонент пагинации
 import { ReportPagination } from "../components/reports/Pagination";
 
+// Интерфейс для отчета в истории
+interface ReportHistoryItem {
+  id: number;
+  name: string;
+  type: "orders" | "devices" | "kpi";
+  period: string;
+  created: string;
+  size: string;
+  format: "xlsx" | "pdf";
+  downloadUrl?: string;
+  userId: number;
+}
+
 export const ReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -67,123 +83,36 @@ export const ReportsPage: React.FC = () => {
   // Состояния для пагинации истории отчетов
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [reports, setReports] = useState<ReportHistoryItem[]>([]);
+  const [totalReports, setTotalReports] = useState(0);
 
-  // История отчетов (заглушка - в реальном приложении данные будут с сервера)
-  const [reports, setReports] = useState<any[]>([
-    {
-      id: 1,
-      name: "Отчет по заявкам - Ноябрь 2024",
-      type: "orders",
-      period: "Ноябрь 2024",
-      created: "01.12.2024 10:30",
-      size: "1.2 MB",
-      format: "xlsx"
-    },
-    {
-      id: 2,
-      name: "Отчет по оборудованию",
-      type: "devices",
-      period: "Октябрь 2024",
-      created: "01.11.2024 14:45",
-      size: "2.1 MB",
-      format: "pdf"
-    },
-    {
-      id: 3,
-      name: "KPI отчет - Q3 2024",
-      type: "kpi",
-      period: "Июль-Сентябрь 2024",
-      created: "01.10.2024 09:15",
-      size: "0.8 MB",
-      format: "xlsx"
-    },
-    {
-      id: 4,
-      name: "Отчет по заявкам - Октябрь 2024",
-      type: "orders",
-      period: "Октябрь 2024",
-      created: "01.11.2024 11:20",
-      size: "1.1 MB",
-      format: "xlsx"
-    },
-    {
-      id: 5,
-      name: "Отчет по оборудованию - Сентябрь 2024",
-      type: "devices",
-      period: "Сентябрь 2024",
-      created: "01.10.2024 16:30",
-      size: "1.9 MB",
-      format: "pdf"
-    },
-    {
-      id: 6,
-      name: "KPI отчет - Август 2024",
-      type: "kpi",
-      period: "Август 2024",
-      created: "01.09.2024 13:10",
-      size: "0.9 MB",
-      format: "xlsx"
-    },
-    {
-      id: 7,
-      name: "Отчет по заявкам - Сентябрь 2024",
-      type: "orders",
-      period: "Сентябрь 2024",
-      created: "01.10.2024 10:00",
-      size: "1.0 MB",
-      format: "xlsx"
-    },
-    {
-      id: 8,
-      name: "Отчет по оборудованию - Август 2024",
-      type: "devices",
-      period: "Август 2024",
-      created: "01.09.2024 15:45",
-      size: "2.0 MB",
-      format: "pdf"
-    },
-    {
-      id: 9,
-      name: "KPI отчет - Июль 2024",
-      type: "kpi",
-      period: "Июль 2024",
-      created: "01.08.2024 12:30",
-      size: "0.7 MB",
-      format: "xlsx"
-    },
-    {
-      id: 10,
-      name: "Отчет по заявкам - Август 2024",
-      type: "orders",
-      period: "Август 2024",
-      created: "01.09.2024 09:45",
-      size: "1.1 MB",
-      format: "xlsx"
-    },
-    {
-      id: 11,
-      name: "Отчет по оборудованию - Июль 2024",
-      type: "devices",
-      period: "Июль 2024",
-      created: "01.08.2024 14:20",
-      size: "1.8 MB",
-      format: "pdf"
-    },
-    {
-      id: 12,
-      name: "KPI отчет - Q2 2024",
-      type: "kpi",
-      period: "Апрель-Июнь 2024",
-      created: "01.07.2024 11:00",
-      size: "1.2 MB",
-      format: "xlsx"
+  // Загрузка истории отчетов
+  const loadReportsHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      // В реальном приложении здесь будет запрос к API
+      // const response = await fetch(`/api/reports/history?page=${page}&limit=${rowsPerPage}`);
+      // const data = await response.json();
+      // setReports(data.reports);
+      // setTotalReports(data.total);
+      
+      // Заглушка для демонстрации
+      setTimeout(() => {
+        // В реальном приложении здесь будут реальные данные
+        setReports([]);
+        setTotalReports(0);
+        setHistoryLoading(false);
+      }, 500);
+    } catch (err) {
+      setError("Ошибка при загрузке истории отчетов");
+      setHistoryLoading(false);
     }
-  ]);
+  };
 
-  // Вычисляем индексы для отображаемых данных
-  const startIndex = (page - 1) * rowsPerPage;
-  const endIndex = startIndex + rowsPerPage;
-  const displayedReports = reports.slice(startIndex, endIndex);
+  // Загружаем историю при монтировании и изменении пагинации
+  useEffect(() => {
+    loadReportsHistory();
+  }, [page, rowsPerPage]);
 
   // Функция для генерации отчета по заявкам
   const generateOrdersReport = async (format: 'xlsx' | 'pdf') => {
@@ -208,19 +137,9 @@ export const ReportsPage: React.FC = () => {
       });
     }
     
-    // После успешной генерации добавляем новый отчет в историю
+    // После успешной генерации обновляем историю
     if (!error) {
-      const newReport = {
-        id: reports.length + 1,
-        name: `Отчет по заявкам - ${new Date().toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}`,
-        type: "orders",
-        period: new Date().toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }),
-        created: new Date().toLocaleString('ru-RU'),
-        size: format === 'xlsx' ? "~1.2 MB" : "~0.5 MB",
-        format: format
-      };
-      setReports([newReport, ...reports]);
-      setPage(1); // Переходим на первую страницу
+      loadReportsHistory();
     }
   };
 
@@ -247,19 +166,9 @@ export const ReportsPage: React.FC = () => {
       });
     }
     
-    // После успешной генерации добавляем новый отчет в историю
+    // После успешной генерации обновляем историю
     if (!error) {
-      const newReport = {
-        id: reports.length + 1,
-        name: `Отчет по оборудованию - ${new Date().toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}`,
-        type: "devices",
-        period: new Date().toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }),
-        created: new Date().toLocaleString('ru-RU'),
-        size: format === 'xlsx' ? "~2.0 MB" : "~0.8 MB",
-        format: format
-      };
-      setReports([newReport, ...reports]);
-      setPage(1); // Переходим на первую страницу
+      loadReportsHistory();
     }
   };
 
@@ -277,7 +186,7 @@ export const ReportsPage: React.FC = () => {
 
     if (format === 'xlsx') {
       await generateXlsxReport({
-        endpoint: 'reportForKPIXlsxF', // Исправлено: было 'reportForKpiXlsxF'
+        endpoint: 'reportForKPIXlsxF',
         params,
         defaultFilename: 'kpi_report',
         setLoading,
@@ -296,23 +205,33 @@ export const ReportsPage: React.FC = () => {
       });
     }
     
-    // После успешной генерации добавляем новый отчет в историю
+    // После успешной генерации обновляем историю
     if (!error) {
-      const periodText = reportPeriod === 'custom' 
-        ? `${startDate} - ${endDate}`
-        : getPeriodText(reportPeriod);
-        
-      const newReport = {
-        id: reports.length + 1,
-        name: `KPI отчет - ${periodText}`,
-        type: "kpi",
-        period: periodText,
-        created: new Date().toLocaleString('ru-RU'),
-        size: format === 'xlsx' ? "~1.0 MB" : "~0.6 MB",
-        format: format
-      };
-      setReports([newReport, ...reports]);
-      setPage(1); // Переходим на первую страницу
+      loadReportsHistory();
+    }
+  };
+
+  // Функция для скачивания отчета из истории
+  const handleDownloadReport = async (report: ReportHistoryItem) => {
+    try {
+      setLoading(true);
+      // В реальном приложении здесь будет запрос к API для скачивания
+      // const response = await fetch(`/api/reports/download/${report.id}`);
+      // const blob = await response.blob();
+      // const url = window.URL.createObjectURL(blob);
+      // const a = document.createElement('a');
+      // a.href = url;
+      // a.download = `${report.name}.${report.format}`;
+      // document.body.appendChild(a);
+      // a.click();
+      // window.URL.revokeObjectURL(url);
+      // document.body.removeChild(a);
+      
+      setSuccess(`Отчет "${report.name}" подготовлен к скачиванию`);
+    } catch (err) {
+      setError("Ошибка при скачивании отчета");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -444,6 +363,11 @@ export const ReportsPage: React.FC = () => {
   const handleRowsPerPageChange = (newRowsPerPage: number) => {
     setRowsPerPage(newRowsPerPage);
     setPage(1);
+  };
+
+  // Функция обновления истории
+  const handleRefreshHistory = () => {
+    loadReportsHistory();
   };
 
   return (
@@ -760,20 +684,36 @@ export const ReportsPage: React.FC = () => {
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
           <History sx={{ fontSize: 28, color: "primary.main" }} />
           <Typography variant="h6">История отчетов</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
-            Всего: {reports.length} отчетов
+          
+          <IconButton 
+            onClick={handleRefreshHistory} 
+            disabled={historyLoading}
+            sx={{ ml: 'auto' }}
+          >
+            <Refresh />
+          </IconButton>
+          
+          <Typography variant="body2" color="text.secondary">
+            Всего: {totalReports} отчетов
           </Typography>
         </Box>
 
-        {reports.length === 0 ? (
+        {historyLoading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : reports.length === 0 ? (
           <Box sx={{ textAlign: "center", py: 4 }}>
-            <Typography variant="body1" color="text.secondary">
-              История отчетов будет отображаться здесь после их генерации
+            <History sx={{ fontSize: 48, color: "text.secondary", mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              История отчетов пуста
+            </Typography>
+            <Typography variant="body1" color="text.secondary" paragraph>
+              Сгенерированные отчеты будут отображаться здесь
             </Typography>
             <Button
-              variant="outlined"
-              startIcon={<Download />}
-              sx={{ mt: 2 }}
+              variant="contained"
+              startIcon={<Assessment />}
               onClick={() => handleOpenReportDialog("orders")}
             >
               Создать первый отчет
@@ -809,7 +749,7 @@ export const ReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {displayedReports.map((report) => (
+                  {reports.map((report) => (
                     <TableRow
                       key={report.id}
                       sx={{
@@ -836,10 +776,8 @@ export const ReportsPage: React.FC = () => {
                           variant="outlined"
                           size="small"
                           startIcon={<Download />}
-                          onClick={() => {
-                            // Здесь будет логика скачивания отчета
-                            setSuccess(`Отчет "${report.name}" скачивается...`);
-                          }}
+                          onClick={() => handleDownloadReport(report)}
+                          disabled={loading}
                         >
                           Скачать
                         </Button>
@@ -851,13 +789,15 @@ export const ReportsPage: React.FC = () => {
             </TableContainer>
 
             {/* Пагинация */}
-            <ReportPagination
-              page={page}
-              rowsPerPage={rowsPerPage}
-              totalRows={reports.length}
-              onPageChange={handlePageChange}
-              onRowsPerPageChange={handleRowsPerPageChange}
-            />
+            {totalReports > 0 && (
+              <ReportPagination
+                page={page}
+                rowsPerPage={rowsPerPage}
+                totalRows={totalReports}
+                onPageChange={handlePageChange}
+                onRowsPerPageChange={handleRowsPerPageChange}
+              />
+            )}
           </>
         )}
 
@@ -922,7 +862,7 @@ export const ReportsPage: React.FC = () => {
           </Grid>
           <Grid item xs={12} md={4}>
             <Typography variant="body2">
-              <strong>Автоматическое скачивание:</strong> Да
+              <strong>История отчетов:</strong> Сохраняется 90 дней
             </Typography>
           </Grid>
         </Grid>
