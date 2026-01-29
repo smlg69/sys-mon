@@ -1,20 +1,19 @@
-// src/components/requests/AssignOrderModal.tsx
-import React, { useState, useEffect } from 'react';
+// components/requests/AssignOrderModal.tsx
+import React, { useState } from "react";
 import {
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
   TextField,
+  Button,
   MenuItem,
-  Typography,
-  Box,
-  Alert,
   CircularProgress,
-} from '@mui/material';
-import { PersonAdd as PersonAddIcon } from '@mui/icons-material';
-import { requestsApi, Order, User } from '../../api/requests';
+  Box,
+  Typography,
+} from "@mui/material";
+import { requestsApi } from "../../api/requests";
+import { Order } from "../../api/requests";
 
 interface AssignOrderModalProps {
   isOpen: boolean;
@@ -23,203 +22,103 @@ interface AssignOrderModalProps {
   onAssign: (orderId: string | number, userName: string) => void;
 }
 
-export const AssignOrderModal: React.FC<AssignOrderModalProps> = ({
+const AssignOrderModal: React.FC<AssignOrderModalProps> = ({
   isOpen,
   onClose,
   order,
   onAssign,
 }) => {
-  const [users, setUsers] = useState<User[]>([]);
+  const [user, setUser] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [selectedUserName, setSelectedUserName] = useState<string>('');
 
-  // Загружаем список исполнителей при открытии модального окна
-  useEffect(() => {
-    const loadUsers = async () => {
-      if (isOpen) {
-        setLoading(true);
-        try {
-          const usersList = await requestsApi.getUsers();
-          setUsers(usersList);
-        } catch (err) {
-          console.error('Ошибка загрузки пользователей:', err);
-          setError('Не удалось загрузить список исполнителей');
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-    
-    loadUsers();
-  }, [isOpen]);
-
-  // Сброс формы при открытии/закрытии
-  useEffect(() => {
-    if (!isOpen) {
-      setSelectedUserId('');
-      setSelectedUserName('');
-      setError(null);
+  const handleSubmit = async () => {
+    if (!order || !user.trim()) {
+      setError("Выберите исполнителя");
+      return;
     }
-  }, [isOpen]);
 
-  const handleUserSelect = (userId: string) => {
-    setSelectedUserId(userId);
-    const selectedUser = users.find(u => u.id.toString() === userId);
-    if (selectedUser) {
-      setSelectedUserName(selectedUser.name);
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log("🔄 Назначение заявки:", order.id, "на исполнителя:", user);
+
+      // Используем requestsApi.assignOrder
+      await requestsApi.assignOrder(order.id, "", user);
+
+      // Вызываем callback
+      onAssign(order.id, user);
+
+      // Закрываем модальное окно
+      onClose();
+    } catch (err: any) {
+      console.error("❌ Ошибка назначения заявки:", err);
+      setError("Ошибка назначения заявки. Попробуйте снова.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Эта функция должна быть внутри компонента!
-  const handleSubmit = async () => {
-  if (!order || !selectedUserId || !selectedUserName) {
-    setError('Выберите исполнителя');
-    return;
-  }
-
-  setSubmitting(true);
-  setError(null);
-  
-  try {
-    // Используем assignOrder для назначения исполнителя
-    await requestsApi.assignOrder(order.id, selectedUserId, selectedUserName);
-    
-    // Вызываем колбэк для обновления UI
-    // onAssign ожидает (orderId, userName), а не (orderId, userName)
-    onAssign(order.id, selectedUserName);
-    
-    // Закрываем модальное окно
+  const handleClose = () => {
+    setUser("");
+    setError(null);
     onClose();
-    
-  } catch (err: any) {
-    console.error('❌ Ошибка назначения заявки:', err);
-    
-    // Более информативное сообщение об ошибке
-    let errorMessage = 'Не удалось назначить заявку';
-    if (err.message) {
-      errorMessage += `: ${err.message}`;
-    }
-    
-    setError(errorMessage);
-  } finally {
-    setSubmitting(false);
-  }
-};
-
-  if (!order) return null;
+  };
 
   return (
-    <Dialog
-      open={isOpen}
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: { borderRadius: 2 }
-      }}
-    >
+    <Dialog open={isOpen} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PersonAddIcon />
-          <Typography variant="h6" component="div">
-            Назначение заявки #{order.id}
-          </Typography>
-        </Box>
-      </DialogTitle>
-      
-      <DialogContent>
-        <Box sx={{ mb: 2 }}>
+        <Typography variant="h6">Назначить заявку в работу</Typography>
+        {order && (
           <Typography variant="body2" color="text.secondary">
-            Оборудование: {order.device || 'Не указано'}
+            Заявка #{order.id} - {order.type}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Тип: {order.type || 'Не указан'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Текущий статус: <strong>{order.status}</strong>
-          </Typography>
-        </Box>
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
         )}
-        
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
+      </DialogTitle>
+      <DialogContent>
+        <Box sx={{ pt: 2 }}>
           <TextField
             select
             fullWidth
-            label="Выберите исполнителя *"
-            value={selectedUserId}
-            onChange={(e) => handleUserSelect(e.target.value)}
-            margin="normal"
-            required
-            disabled={submitting}
-            error={!!error && !selectedUserId}
+            label="Исполнитель *"
+            value={user}
+            onChange={(e) => setUser(e.target.value)}
+            disabled={loading}
+            error={!!error}
+            helperText={error}
           >
-            <MenuItem value="">Не назначен</MenuItem>
-            {users.map((user) => (
-              <MenuItem key={user.id} value={user.id.toString()}>
-                {user.name}
-              </MenuItem>
-            ))}
+            <MenuItem value="Васильев М.С.">Васильев М.С.</MenuItem>
+            <MenuItem value="Смирнов А.П.">Смирнов А.П.</MenuItem>
+            <MenuItem value="Иванов П.К.">Иванов П.К.</MenuItem>
+            <MenuItem value="Попов Д.В.">Попов Д.В.</MenuItem>
+            <MenuItem value="Сидоров И.И.">Сидоров И.И.</MenuItem>
+            <MenuItem value="Махмудов И.К.">Махмудов И.К.</MenuItem>
           </TextField>
-        )}
-        
-        {selectedUserName && (
-          <Alert severity="info" sx={{ mt: 2 }}>
-            Заявка будет назначена на: <strong>{selectedUserName}</strong>
-            <br />
-            Статус изменится на: <strong>В работе</strong>
-          </Alert>
-        )}
+        </Box>
       </DialogContent>
-      
       <DialogActions sx={{ px: 3, pb: 2 }}>
-  <Button
-    onClick={onClose}
-    disabled={submitting}
-    variant="outlined"
-  >
-    Отмена
-  </Button>
-  
-  {/* Кнопка для тестирования форматов */}
-  <Button
-    onClick={async () => {
-      if (!order) return;
-      try {
-        await requestsApi.testUpdateFormat(order.id, selectedUserName || 'Тестовый');
-        setError('Тестирование завершено - проверьте консоль');
-      } catch (err: any) {
-        setError('Все форматы не сработали: ' + err.message);
-      }
-    }}
-    disabled={!order || submitting}
-    variant="outlined"
-    color="secondary"
-  >
-    Тест форматов
-  </Button>
-  
-  <Button
-    onClick={handleSubmit}
-    disabled={submitting || !selectedUserId || loading}
-    variant="contained"
-    color="primary"
-    startIcon={<PersonAddIcon />}
-  >
-    {submitting ? 'Назначение...' : 'Назначить'}
-  </Button>
-</DialogActions>
+        <Button onClick={handleClose} disabled={loading} variant="outlined">
+          Отмена
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          disabled={loading || !user.trim()}
+          variant="contained"
+          color="primary"
+        >
+          {loading ? (
+            <>
+              <CircularProgress size={20} sx={{ mr: 1 }} />
+              Назначение...
+            </>
+          ) : (
+            "Назначить"
+          )}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 };
+
+export { AssignOrderModal };

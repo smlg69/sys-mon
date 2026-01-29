@@ -26,14 +26,14 @@ import {
   //ListItemText,
   //TextField,
   //InputAdornment,
-  MenuItem,
+  //MenuItem,
   //LinearProgress,
   Tooltip,
   CardHeader,
-  TablePagination,
-  Select,
-  FormControl,
-  InputLabel,
+  //TablePagination,
+  //Select,
+  //FormControl,
+  //InputLabel,
 } from "@mui/material";
 import {
   AcUnit,
@@ -76,6 +76,7 @@ import {
   //Stop,
   //AccessTime,
   PriorityHigh,
+  //FireExtinguisher,
 } from "@mui/icons-material";
 
 import { ReportPagination } from "../components/reports/Pagination";
@@ -247,7 +248,7 @@ export const DashboardPage: React.FC = () => {
   // Состояния для пагинации
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [rowsPerPageOptions] = useState([10, 25, 50, 100]);
+  /*const [rowsPerPageOptions] = useState([10, 25, 50, 100]);*/
 
   // Состояние для режима просмотра диаграммы Ганта
   const [viewMode, setViewMode] = useState<"week" | "month" | "quarter">(
@@ -361,43 +362,29 @@ export const DashboardPage: React.FC = () => {
   const typeLower = type.toLowerCase();
   
   if (
-    typeLower.includes("насос") ||
-    typeLower.includes("тепловой") ||
-    typeLower.includes("вентиляция") ||
-    typeLower.includes("отопление") ||
-    typeLower.includes("кондиционирование") ||
-    typeLower.includes("hvac")
+    typeLower.includes("насос") || typeLower.includes("температур") || typeLower.includes("вентиляц") ||
+    typeLower.includes("отопление") || typeLower.includes("кондиц") || typeLower.includes("теплов") ||
+    typeLower.includes("клапан") || typeLower.includes("hvac")
   ) {
     return "hvac";
   } else if (
-    typeLower.includes("скуд") ||
-    typeLower.includes("доступ") ||
-    typeLower.includes("контроль доступа") ||
-    typeLower.includes("access")
+    typeLower.includes("скуд") || typeLower.includes("считыватель") || typeLower.includes("контроллер") ||
+    typeLower.includes("замок") || typeLower.includes("access")
   ) {
-    return "СКУД";
+    return "access";
   } else if (
-    typeLower.includes("видеонаблюдение") ||
-    typeLower.includes("видео") ||
-    typeLower.includes("камера") ||
-    typeLower.includes("cctv") ||
-    typeLower.includes("video")
+    typeLower.includes("сервер") || typeLower.includes("видео") || typeLower.includes("камера") ||
+    typeLower.includes("регистратор") || typeLower.includes("video")
   ) {
-    return "Видеонаблюдение";
+    return "video";
   } else if (
-    typeLower.includes("жкх") ||
-    typeLower.includes("коммунальн")
+    typeLower.includes("GSM") || typeLower.includes("сигнализац") || typeLower.includes("дыма")
   ) {
-    return "ЖКХ";
-  } else if (
-    typeLower.includes("водоснабжение") ||
-    typeLower.includes("электроснабжение")
-  ) {
-    return "ЖКХ";
+    return "fire";
   }
 
   // Если система не определена, возвращаем "Общее"
-  return "Общее";
+  return "fire";  //"Общее"
 };
 
 // Добавьте функцию для нормализации системных имен к стандартным значениям
@@ -408,21 +395,18 @@ const normalizeSystemName = (system: string): string => {
     return "ЖКХ";
   } else if (systemLower === "скуд" || systemLower === "access") {
     return "СКУД";
-  } else if (
-    systemLower === "видеонаблюдение" || 
-    systemLower === "video" || 
-    systemLower === "cctv"
-  ) {
+  } else if (systemLower === "video" || systemLower === "cctv") {
     return "Видеонаблюдение";
+  } else if (systemLower === "пб" || systemLower === "fire") {
+    return "Пожарная";
   }
-  
   // Возвращаем оригинальное значение, если оно соответствует одному из допустимых
-  if (["hvac", "СКУД", "Видеонаблюдение", "ЖКХ", "access", "video"].includes(system)) {
+  //if (["hvac", "СКУД", "Видеонаблюдение", "ЖКХ", "access", "video"].includes(system)) {
     return system;
-  }
+  //}
   
   // По умолчанию возвращаем "Общее"
-  return "Общее";
+  //return "Общее";
 };
 
   const formatDate = (dateString: string): string => {
@@ -471,15 +455,13 @@ const normalizeSystemName = (system: string): string => {
   
   switch (normalizedSystem) {
     case "ЖКХ":
-    case "hvac":
       return "#2196f3";
     case "СКУД":
-    case "access":
       return "#9c27b0";
     case "Видеонаблюдение":
-    case "video":
-    case "cctv":
       return "#ff9800";
+    case "Пожарная":
+      return "#f44336"; // Красный для пожарной системы
     default:
       return "#757575";
   }
@@ -627,6 +609,20 @@ const normalizeSystemName = (system: string): string => {
       avgResponse: calculateAvgResponseTime("cctv"),
       completedOnTime: calculateCompletedOnTime("cctv"),
     },
+    /*// Пожарная система
+    {
+    id: "fire",
+    name: "Пожарная система",
+    icon: <FireExtinguisher sx={{ fontSize: 40 }} />, 
+    status: "Норма",
+    value: `${calculateSystemHealth("fire")}%`,
+    color: "success" as const,
+    activeRequests: getTasksBySystem("fire").filter(
+      (t: any) => t.action === "В работе"
+    ).length,
+    avgResponse: calculateAvgResponseTime("fire"),
+    completedOnTime: calculateCompletedOnTime("fire"),
+    },*/
   ];
 
   // Оборудование к обслуживанию (с пагинацией)
@@ -733,7 +729,7 @@ const normalizeSystemName = (system: string): string => {
   };
 
   // Обработчики для пагинации
-  const handleChangePage = (event: unknown, newPage: number) => {
+  /*const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
   };
 
@@ -742,7 +738,7 @@ const normalizeSystemName = (system: string): string => {
   ) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
-  };
+  };*/
 
   if (loading) {
     return (
@@ -941,6 +937,10 @@ const normalizeSystemName = (system: string): string => {
                       ? "primary"
                       : normalizedSystem === "СКУД"
                       ? "secondary"
+                      : normalizedSystem === "Видеонаблюдение"
+                      ? "warning"
+                      : normalizedSystem === "Пожарная"
+                      ? "error"
                       : "default"
                   }
                 />

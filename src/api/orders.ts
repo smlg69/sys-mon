@@ -20,7 +20,7 @@ export const ordersApi = {
   getOrders: async (params?: GetOrdersParams): Promise<Order[]> => {
     const response = await apiClient.post<any>(
       "/getOrdersF",
-      params?.num ? [{ num: params.num.toString() }] : []
+      params?.num ? [{ num: params.num.toString() }] : [],
     );
 
     // Проверяем формат ответа
@@ -49,9 +49,9 @@ export const ordersApi = {
   // Обновление заявки
   updateOrder: async (
     id: string,
-    orderData: Partial<Order>
+    orderData: Partial<Order>,
   ): Promise<Order> => {
-    const response = await apiClient.put<any>("updateOrderF", [
+    const response = await apiClient.put<any>("/updateOrderF", [
       { id, ...orderData },
     ]);
     return Array.isArray(response) ? response[0] : response;

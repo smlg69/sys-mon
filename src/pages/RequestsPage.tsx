@@ -48,7 +48,7 @@ import {
 import { requestsApi, Order } from "../api/requests";
 import { useFormattedId } from "../hooks/useFormattedId";
 import { AssignOrderModal } from "../components/requests/AssignOrderModal";
-import { apiClient } from "../api/client"; // Импортируем apiClient из работающей версии
+import { apiClient } from "../api/client"; 
 // Импортируем внешний компонент пагинации
 import { ReportPagination } from "../components/reports/Pagination";
 
@@ -495,6 +495,11 @@ const RequestsPage: React.FC = () => {
     userName: string
   ) => {
     try {
+      console.log("🔄 Назначение заявки:", orderId, "на исполнителя:", userName);
+
+    // Используем requestsApi.assignOrder
+    await requestsApi.assignOrder(orderId, "", userName);
+
       // Обновляем локальный статус заявки
       setOrders((prev) =>
         prev.map((order) =>
@@ -697,111 +702,105 @@ const RequestsPage: React.FC = () => {
   };
 
   const handleCreateOrder = async () => {
-    if (!validateForm()) {
-      return;
-    }
+  if (!validateForm()) {
+    return;
+  }
 
-    setSubmitting(true);
-    try {
-      // Подготавливаем данные для отправки на бэк
-      // Только 5 полей: тип, устройство, приоритет, описание, пользователь
-      const orderData = {
+  setSubmitting(true);
+  try {
+    console.log('🆕 Создание новой заявки:', formData);
+
+    // Подготавливаем данные для отправки
+    const orderData = {
+      type: formData.type,
+      device: formData.device,
+      priority: formData.priority,
+      description: formData.description,
+      user: formData.user || '',
+    };
+
+    console.log('📤 Отправка данных на сервер:', orderData);
+
+    // Вызываем API для создания заявки
+    const response = await requestsApi.createOrder(orderData); // ОБЪЯВЛЕНО ПЕРВЫМ
+    
+    console.log('✅ Ответ от сервера при создании:', response); // ТЕПЕРЬ МОЖНО ИСПОЛЬЗОВАТЬ
+
+    // Если сервер вернул созданную заявку
+    let createdOrder: Order;
+    if (Array.isArray(response) && response.length > 0) {
+      createdOrder = {
+        id: response[0].id || response[0].orderId || `temp-${Date.now()}`,
+        type: response[0].type || formData.type,
+        device: response[0].device || formData.device,
+        priority: response[0].priority || formData.priority,
+        description: response[0].description || formData.description,
+        status: response[0].status || 'Создана',
+        user: response[0].user || response[0].nUser || formData.user || '',
+        date: new Date().toISOString(),
+        startDate: response[0].startDate || null,
+        endDate: response[0].endDate || null,
+        originalData: response[0],
+      };
+    } else if (response && typeof response === 'object') {
+      createdOrder = {
+        id: response.id || response.orderId || `temp-${Date.now()}`,
+        type: response.type || formData.type,
+        device: response.device || formData.device,
+        priority: response.priority || formData.priority,
+        description: response.description || formData.description,
+        status: response.status || 'Создана',
+        user: response.user || response.nUser || formData.user || '',
+        date: new Date().toISOString(),
+        startDate: response.startDate || null,
+        endDate: response.endDate || null,
+        originalData: response,
+      };
+    } else {
+      // Если сервер не вернул данные, создаем временную запись
+      createdOrder = {
+        id: `temp-${Date.now()}`,
         type: formData.type,
         device: formData.device,
         priority: formData.priority,
         description: formData.description,
-        // Только user, без date и других полей
+        status: 'Создана',
         user: formData.user || '',
+        date: new Date().toISOString(),
+        startDate: null,
+        endDate: null,
       };
-
-      console.log('📤 Отправка данных на сервер:', orderData);
-
-      // Вызываем API для создания заявки
-      const response = await requestsApi.createOrder(orderData);
-      
-      console.log('✅ Ответ от сервера при создании:', response);
-
-      // Если сервер вернул созданную заявку
-      let createdOrder: Order;
-      if (Array.isArray(response) && response.length > 0) {
-        // Если ответ - массив с созданной заявкой
-        createdOrder = {
-          id: response[0].id || response[0].orderId || `temp-${Date.now()}`,
-          type: response[0].type || formData.type,
-          device: response[0].device || formData.device,
-          priority: response[0].priority || formData.priority,
-          description: response[0].description || formData.description,
-          status: response[0].status || 'Создана',
-          user: response[0].user || response[0].nUser || formData.user || '',
-          date: new Date().toISOString(),
-          startDate: response[0].startDate || null,
-          endDate: response[0].endDate || null,
-          originalData: response[0],
-        };
-      } else if (response && typeof response === 'object') {
-        // Если ответ - объект
-        createdOrder = {
-          id: response.id || response.orderId || `temp-${Date.now()}`,
-          type: response.type || formData.type,
-          device: response.device || formData.device,
-          priority: response.priority || formData.priority,
-          description: response.description || formData.description,
-          status: response.status || 'Создана',
-          user: response.user || response.nUser || formData.user || '',
-          date: new Date().toISOString(),
-          startDate: response.startDate || null,
-          endDate: response.endDate || null,
-          originalData: response,
-        };
-      } else {
-        // Если сервер не вернул данные, создаем временную запись
-        createdOrder = {
-          id: `temp-${Date.now()}`,
-          type: formData.type,
-          device: formData.device,
-          priority: formData.priority,
-          description: formData.description,
-          status: 'Создана',
-          user: formData.user || '',
-          date: new Date().toISOString(), // Генерируем дату локально
-          startDate: null,
-          endDate: null,
-        };
-      }
-
-      // Добавляем заявку в локальное состояние
-      setOrders((prev) => [createdOrder, ...prev]);
-
-      setSnackbar({
-        open: true,
-        message: "Заявка успешно создана",
-        severity: "success",
-      });
-      handleCloseModal();
-
-      console.log("✅ Новая заявка создана:", createdOrder);
-      
-      // WebSocket должен обновить данные автоматически
-
-    } catch (err: any) {
-      console.error("❌ Ошибка создания заявки:", err);
-      
-      let errorMessage = "Ошибка создания заявки";
-      if (err.response?.data) {
-        errorMessage = `Ошибка сервера: ${JSON.stringify(err.response.data)}`;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      
-      setSnackbar({
-        open: true,
-        message: errorMessage,
-        severity: "error",
-      });
-    } finally {
-      setSubmitting(false);
     }
-  };
+
+    // Добавляем заявку в локальное состояние
+    setOrders((prev) => [createdOrder, ...prev]);
+
+    setSnackbar({
+      open: true,
+      message: "Заявка успешно создана",
+      severity: "success",
+    });
+    handleCloseModal();
+
+  } catch (err: any) {
+    console.error("❌ Ошибка создания заявки:", err);
+    
+    let errorMessage = "Ошибка создания заявки";
+    if (err.response?.data) {
+      errorMessage = `Ошибка сервера: ${JSON.stringify(err.response.data)}`;
+    } else if (err.message) {
+      errorMessage = err.message;
+    }
+    
+    setSnackbar({
+      open: true,
+      message: errorMessage,
+      severity: "error",
+    });
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   if (loading && orders.length === 0) {
     return (

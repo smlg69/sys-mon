@@ -2,95 +2,116 @@
 import React from "react";
 import {
   Box,
-  Pagination,
-  FormControl,
-  InputLabel,
-  Select,
+  IconButton,
   MenuItem,
+  Select,
   SelectChangeEvent,
   Typography,
 } from "@mui/material";
+import { FirstPage, LastPage, ChevronLeft, ChevronRight } from "@mui/icons-material";
 
-interface PaginationProps {
+interface ReportPaginationProps {
   page: number;
   rowsPerPage: number;
   totalRows: number;
-  onPageChange: (page: number) => void;
-  onRowsPerPageChange: (rowsPerPage: number) => void;
+  onPageChange: (newPage: number) => void;
+  onRowsPerPageChange: (newRowsPerPage: number) => void;
   disabled?: boolean;
+  rowsPerPageOptions?: number[]; // Добавляем опцию кастомных значений
 }
 
-export const ReportPagination: React.FC<PaginationProps> = ({
+export const ReportPagination: React.FC<ReportPaginationProps> = ({
   page,
   rowsPerPage,
   totalRows,
   onPageChange,
   onRowsPerPageChange,
   disabled = false,
+  rowsPerPageOptions = [10, 25, 50, 100], // Дефолтные значения
 }) => {
   const totalPages = Math.ceil(totalRows / rowsPerPage);
-  
-  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
-    onPageChange(value);
-  };
+  const startRow = (page - 1) * rowsPerPage + 1;
+  const endRow = Math.min(page * rowsPerPage, totalRows);
 
   const handleRowsPerPageChange = (event: SelectChangeEvent<number>) => {
-    onRowsPerPageChange(Number(event.target.value));
+    const newRowsPerPage = Number(event.target.value);
+    onRowsPerPageChange(newRowsPerPage);
   };
-
-  const startIndex = totalRows > 0 ? (page - 1) * rowsPerPage + 1 : 0;
-  const endIndex = Math.min(page * rowsPerPage, totalRows);
 
   return (
     <Box
       sx={{
         display: "flex",
-        justifyContent: "space-between",
         alignItems: "center",
+        justifyContent: "space-between",
         p: 2,
-        borderTop: 1,
-        borderColor: "divider",
-        backgroundColor: "background.paper",
-        flexWrap: 'wrap',
-        gap: 2,
+        borderTop: "1px solid #e0e0e0",
+        backgroundColor: "#f9f9f9",
       }}
     >
+      {/* Левая часть: строк на странице */}
       <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
         <Typography variant="body2" color="text.secondary">
           Строк на странице:
         </Typography>
-        <FormControl size="small" sx={{ minWidth: 100 }} disabled={disabled}>
-          <InputLabel id="rows-per-page-label">Строк</InputLabel>
-          <Select
-            labelId="rows-per-page-label"
-            id="rows-per-page-select"
-            value={rowsPerPage}
-            label="Строк"
-            onChange={handleRowsPerPageChange}
-          >
-            <MenuItem value={10}>10</MenuItem>
-            <MenuItem value={25}>25</MenuItem>
-            <MenuItem value={50}>50</MenuItem>
-            <MenuItem value={100}>100</MenuItem>
-          </Select>
-        </FormControl>
+        <Select
+          value={rowsPerPage}
+          onChange={handleRowsPerPageChange}
+          size="small"
+          disabled={disabled}
+          sx={{ minWidth: 80 }}
+        >
+          {rowsPerPageOptions.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </Select>
+      </Box>
+
+      {/* Центральная часть: информация */}
+      <Box sx={{ textAlign: "center" }}>
         <Typography variant="body2" color="text.secondary">
-          {startIndex}-{endIndex} из {totalRows}
+          {startRow}-{endRow} из {totalRows}
         </Typography>
       </Box>
-      
-      {totalPages > 0 && (
-        <Pagination
-          count={totalPages}
-          page={page}
-          onChange={handlePageChange}
-          color="primary"
-          size="medium"
-          showFirstButton
-          showLastButton
-          disabled={disabled}
-        />
-      )}
+
+      {/* Правая часть: навигация по страницам */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <IconButton
+          onClick={() => onPageChange(1)}
+          disabled={disabled || page === 1}
+          size="small"
+        >
+          <FirstPage />
+        </IconButton>
+        <IconButton
+          onClick={() => onPageChange(page - 1)}
+          disabled={disabled || page === 1}
+          size="small"
+        >
+          <ChevronLeft />
+        </IconButton>
+
+        <Typography variant="body2" sx={{ mx: 2 }}>
+          Страница {page} из {totalPages}
+        </Typography>
+
+        <IconButton
+          onClick={() => onPageChange(page + 1)}
+          disabled={disabled || page === totalPages}
+          size="small"
+        >
+          <ChevronRight />
+        </IconButton>
+        <IconButton
+          onClick={() => onPageChange(totalPages)}
+          disabled={disabled || page === totalPages}
+          size="small"
+        >
+          <LastPage />
+        </IconButton>
+      </Box>
     </Box>
   );
 };

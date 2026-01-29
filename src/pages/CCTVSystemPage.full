@@ -1,0 +1,1814 @@
+// pages/CCTVSystemPage.tsx
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import {
+  Box,
+  Paper,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  Button,
+  IconButton,
+  Alert,
+  CircularProgress,
+  Chip,
+  Avatar,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Fab,
+  Switch,
+  FormControlLabel,
+  Tab,
+  Tabs,
+  Snackbar,
+  CardHeader,
+  Tooltip,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
+} from "@mui/material";
+import {
+  Videocam,
+  Schema,
+  Build,
+  Schedule,
+  Refresh,
+  ShowChart,
+  Settings,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpward,
+  ArrowDownward,
+  CheckCircle,
+  Warning as WarningIcon,
+  Error as ErrorIcon,
+  History,
+  Camera,
+  Storage,
+  Computer,
+  Lan,
+  Router,
+  Build as BuildIcon,
+  Visibility,
+  Assignment,
+} from "@mui/icons-material";
+import { apiClient } from "../api/client";
+import { ReportPagination } from "../components/reports/Pagination";
+import { useAlert } from "../hooks/useAlert";
+
+// Интерфейсы данных
+interface CCTVDevice {
+  id: string;
+  name: string;
+  type: string;
+  status: "normal" | "warning" | "critical";
+  value: string;
+  group?: string;
+  deviceId?: string;
+  deviceName?: string;
+  location?: string;
+  timestamp?: string;
+  description?: string;
+  param?: string;
+  active?: boolean;
+  ipAddress?: string;
+  resolution?: string;
+  fps?: number;
+  storageUsage?: number;
+  isOnline?: boolean;
+  currentValue?: number; // Добавляем поле для текущего значения
+}
+
+interface CCTVDataPoint {
+  timestamp: string;
+  value: number;
+  node: string;
+  param: string;
+}
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+interface CCTVMaintenanceTask {
+  id: string;
+  task: string;
+  taskDate: string;
+  action: string;
+  type: string;
+  device: string;
+  user: string;
+  realDate: string | null;
+}
+
+interface HTFResponseItem {
+  vUpdateTime: string;
+  vValue: Array<{
+    [key: string]: string | number;
+    volumeDate: string;
+    id: string;
+  }>;
+}
+
+interface TblValuesItem {
+  param?: string;
+  name?: string;
+  id?: string;
+  value?: string | number;
+  data?: string | number;
+  val?: string | number;
+  timestamp?: string;
+  time?: string;
+  created_at?: string;
+  unit?: string;
+  [key: string]: any;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div role="tabpanel" hidden={value !== index} {...other}>
+      {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
+// Константы
+const TARGET_WS = process.env.REACT_APP_TARGET_WS;
+const VARIABLES = process.env.REACT_APP_VARIABLES;
+const FUNCTIONS = process.env.REACT_APP_FUNCTIONS;
+
+// Компонент графика
+const CCTVChart: React.FC<{
+  data: CCTVDataPoint[];
+  title: string;
+  color?: string;
+  unit?: string;
+  isLoading?: boolean;
+}> = React.memo(
+  ({ data, title, color = "#1976d2", unit = "ед.", isLoading = false }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [stats, setStats] = useState({
+      min: 0,
+      max: 0,
+      current: 0,
+      avg: 0,
+      trend: 0,
+    });
+
+    // Ограничиваем данные 50 точками для читаемости
+    const limitedData = useMemo(() => {
+      if (data.length <= 50) return data;
+      return data.slice(-50);
+    }, [data]);
+
+    const drawChart = useCallback(() => {
+      if (!canvasRef.current) return;
+
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (limitedData.length === 0) {
+        ctx.fillStyle = "#999";
+        ctx.font = "14px Inter";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(
+          "Нет данных для отображения",
+          canvas.width / 2,
+          canvas.height / 2
+        );
+        return;
+      }
+
+      const values = limitedData.map((d) => d.value);
+      const minVal = Math.min(...values);
+      const maxVal = Math.max(...values);
+      const currentVal = limitedData[limitedData.length - 1]?.value || 0;
+      const avgVal = values.reduce((a, b) => a + b, 0) / values.length;
+      const trend = limitedData.length > 1 ? currentVal - limitedData[0].value : 0;
+
+      setStats({
+        min: minVal,
+        max: maxVal,
+        current: currentVal,
+        avg: avgVal,
+        trend,
+      });
+
+      const padding = { top: 40, right: 30, bottom: 50, left: 60 };
+      const chartWidth = canvas.width - padding.left - padding.right;
+      const chartHeight = canvas.height - padding.top - padding.bottom;
+      const valueRange = maxVal - minVal || 1;
+
+      // Сетка
+      ctx.strokeStyle = "#e0e0e0";
+      ctx.lineWidth = 1;
+
+      for (let i = 0; i <= 5; i++) {
+        const y = padding.top + (i * chartHeight) / 5;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(padding.left + chartWidth, y);
+        ctx.stroke();
+      }
+
+      // График
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      limitedData.forEach((point, index) => {
+        const x = padding.left + (index / Math.max(limitedData.length - 1, 1)) * chartWidth;
+        const y = padding.top + chartHeight - ((point.value - minVal) / valueRange) * chartHeight;
+
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Точки
+      ctx.fillStyle = color;
+      if (limitedData.length <= 20) {
+        limitedData.forEach((point, index) => {
+          const x = padding.left + (index / Math.max(limitedData.length - 1, 1)) * chartWidth;
+          const y = padding.top + chartHeight - ((point.value - minVal) / valueRange) * chartHeight;
+
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // Последняя точка
+      if (limitedData.length > 0) {
+        const lastIndex = limitedData.length - 1;
+        const x = padding.left + chartWidth;
+        const y = padding.top + chartHeight - ((limitedData[lastIndex].value - minVal) / valueRange) * chartHeight;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = "#ff4444";
+        ctx.fill();
+
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Подписи
+      ctx.fillStyle = "#333";
+      ctx.font = "bold 14px Inter";
+      ctx.textAlign = "center";
+      ctx.fillText(title, canvas.width / 2, padding.top - 15);
+
+      ctx.font = "12px Inter";
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#666";
+      ctx.fillText(`${maxVal.toFixed(1)}${unit}`, padding.left - 10, padding.top + 5);
+      ctx.fillText(`${minVal.toFixed(1)}${unit}`, padding.left - 10, padding.top + chartHeight);
+
+    }, [limitedData, title, color, unit]);
+
+    useEffect(() => {
+      drawChart();
+      const handleResize = () => drawChart();
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
+    }, [drawChart]);
+
+    return (
+      <Box sx={{ width: "100%", height: "100%", position: "relative" }}>
+        <canvas
+          ref={canvasRef}
+          width={800}
+          height={300}
+          style={{
+            width: "100%",
+            height: "100%",
+            backgroundColor: "#f9f9f9",
+            borderRadius: "4px",
+          }}
+        />
+
+        {isLoading && (
+          <Box sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255, 255, 255, 0.7)",
+          }}>
+            <CircularProgress size={24} />
+          </Box>
+        )}
+
+        <Box sx={{
+          position: "absolute",
+          bottom: 10,
+          left: 10,
+          display: "flex",
+          gap: 1,
+        }}>
+          <Chip
+            size="small"
+            icon={<ArrowDownward />}
+            label={`${stats.min.toFixed(1)}${unit}`}
+            variant="outlined"
+            sx={{ backgroundColor: "rgba(255,255,255,0.9)" }}
+          />
+          <Chip
+            size="small"
+            icon={stats.trend > 0 ? <TrendingUp /> : <TrendingDown />}
+            label={`${stats.current.toFixed(1)}${unit}`}
+            color={stats.trend > 0 ? "success" : stats.trend < 0 ? "error" : "default"}
+            sx={{ backgroundColor: "rgba(255,255,255,0.9)" }}
+          />
+          <Chip
+            size="small"
+            icon={<ArrowUpward />}
+            label={`${stats.max.toFixed(1)}${unit}`}
+            variant="outlined"
+            sx={{ backgroundColor: "rgba(255,255,255,0.9)" }}
+          />
+        </Box>
+      </Box>
+    );
+  }
+);
+
+export const CCTVSystemPage: React.FC = () => {
+  // ========== СОСТОЯНИЯ ==========
+  const [chartData, setChartData] = useState<CCTVDataPoint[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<string>("");
+  const [currentTab, setCurrentTab] = useState(0);
+  const [selectedNode, setSelectedNode] = useState<string>("");
+  const [pollingActive, setPollingActive] = useState<boolean>(true);
+  const [selectedEquipmentType, setSelectedEquipmentType] = useState("all");
+
+  const [devices, setDevices] = useState<CCTVDevice[]>([]);
+  const [filteredDevices, setFilteredDevices] = useState<CCTVDevice[]>([]);
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
+
+  const [schemePage, setSchemePage] = useState<number>(1);
+  const [schemeRowsPerPage] = useState<number>(9);
+  const [equipmentPage, setEquipmentPage] = useState<number>(1);
+  const [equipmentRowsPerPage, setEquipmentRowsPerPage] = useState<number>(10);
+  const [equipmentTotalCount, setEquipmentTotalCount] = useState<number>(0);
+  
+  const [maintenanceTasks, setMaintenanceTasks] = useState<CCTVMaintenanceTask[]>([]);
+  const [allTasks, setAllTasks] = useState<CCTVMaintenanceTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState<boolean>(true);
+  const [tasksPage, setTasksPage] = useState<number>(1);
+  const [tasksRowsPerPage, setTasksRowsPerPage] = useState<number>(10);
+
+  const { setAlarm, loading: alarmLoading } = useAlert();
+  
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "info" as "success" | "info" | "warning" | "error",
+  });
+
+  // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "normal": case "норма": case "активен": return "success";
+      case "warning": case "внимание": case "предупреждение": return "warning";
+      case "critical": case "критично": case "ошибка": return "error";
+      default: return "default";
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "normal": case "норма": case "активен": return <CheckCircle fontSize="small" />;
+      case "warning": case "внимание": case "предупреждение": return <WarningIcon fontSize="small" />;
+      case "critical": case "критично": case "ошибка": return <ErrorIcon fontSize="small" />;
+      default: return <CheckCircle fontSize="small" />;
+    }
+  };
+
+  const getDeviceIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case "camera": case "камера": return <Camera />;
+      case "recorder": case "регистратор": case "rg": return <Storage />;
+      case "server": case "сервер": case "sr": return <Computer />;
+      case "switch": case "коммутатор": return <Lan />;
+      case "nvr": case "nvr-регистратор": return <Router />;
+      case "scanner": case "сканер": case "sc": return <Videocam />;
+      default: return <Videocam />;
+    }
+  };
+
+  const formatDeviceValue = (device: CCTVDevice): string => {
+    if (device.currentValue !== undefined) {
+      let unit = "ед.";
+      if (device.param?.startsWith('cam')) unit = 'fps';
+      if (device.param?.startsWith('rg')) unit = 'кБ/с';
+      if (device.param?.startsWith('sc')) unit = '%';
+      if (device.param?.startsWith('sr')) unit = 'ед.';
+      return `${device.currentValue.toFixed(2)} ${unit}`;
+    }
+    return device.value || "Нет данных";
+  };
+
+  const mapDeviceType = (deviceType: string, param?: string): string => {
+    if (!deviceType) {
+      // Определяем по параметру
+      if (param?.startsWith('cam')) return "camera";
+      if (param?.startsWith('rg')) return "recorder";
+      if (param?.startsWith('sc')) return "scanner";
+      if (param?.startsWith('sr')) return "server";
+      return "camera";
+    }
+
+    const typeLower = deviceType.toLowerCase();
+
+    if (typeLower.includes("камера") || typeLower.includes("camera") || typeLower.includes("cam")) {
+      return "camera";
+    }
+    if (typeLower.includes("регистратор") || typeLower.includes("recorder") || typeLower.includes("rg")) {
+      return "recorder";
+    }
+    if (typeLower.includes("сервер") || typeLower.includes("server") || typeLower.includes("sr")) {
+      return "server";
+    }
+    if (typeLower.includes("сканер") || typeLower.includes("scanner") || typeLower.includes("sc")) {
+      return "scanner";
+    }
+    if (typeLower.includes("коммутатор") || typeLower.includes("switch") || typeLower.includes("sw")) {
+      return "switch";
+    }
+    return "camera";
+  };
+
+  // ========== ФУНКЦИИ ДЛЯ ПОЛУЧЕНИЯ РЕАЛЬНЫХ ДАННЫХ ==========
+  const fetchFromGetDevicesHTF = useCallback(async (paramPrefix: string): Promise<CCTVDataPoint[]> => {
+    try {
+      console.log('🔍 fetchFromGetDevicesHTF для префикса:', paramPrefix);
+      
+      const functionsBase = FUNCTIONS;
+      if (!functionsBase) {
+        console.error('❌ FUNCTIONS не определен в env');
+        return [];
+      }
+      
+      // ПЕРЕДАЕМ ПРЕФИКС (например "cam"), а не полный параметр ("cam1")
+      const requestData = [{ param: paramPrefix }];
+      
+      console.log('📤 Отправляем запрос с данными:', JSON.stringify(requestData));
+      
+      const response = await apiClient.post<HTFResponseItem[]>(
+        'getDevicesHTF',
+        requestData,
+        { 
+          baseURL: functionsBase,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log('📥 Ответ getDevicesHTF:', {
+        тип: Array.isArray(response) ? 'массив' : typeof response,
+        длина: Array.isArray(response) ? response.length : 'N/A',
+      });
+      
+      if (response && Array.isArray(response) && response.length > 0) {
+        const historicalData: CCTVDataPoint[] = [];
+        
+        response.forEach((item: HTFResponseItem) => {
+          if (item.vValue && Array.isArray(item.vValue) && item.vValue[0]) {
+            const values = item.vValue[0];
+            
+            // Собираем все параметры с заданным префиксом
+            Object.keys(values).forEach(key => {
+              if (key.startsWith(paramPrefix) && key !== 'volumeDate' && key !== 'id') {
+                const valueStr = String(values[key]).replace(',', '.');
+                const value = parseFloat(valueStr);
+                
+                if (!isNaN(value)) {
+                  historicalData.push({
+                    timestamp: item.vUpdateTime,
+                    value: value,
+                    node: key,
+                    param: key
+                  });
+                }
+              }
+            });
+          }
+        });
+        
+        console.log(`📈 Найдено ${historicalData.length} точек для префикса ${paramPrefix}`);
+        return historicalData;
+      }
+      
+      return [];
+      
+    } catch (error: any) {
+      console.error('❌ Ошибка getDevicesHTF:', error.message);
+      return [];
+    }
+  }, []);
+
+  // ========== ФУНКЦИИ ДЛЯ ОБСЛУЖИВАНИЯ ==========
+  const getTaskStatusInfo = (action: string) => {
+    const actionLower = action.toLowerCase();
+    
+    if (actionLower.includes('выполнено') || actionLower.includes('завершено')) {
+      return { label: 'Выполнено', color: 'success' as const };
+    } else if (actionLower.includes('запланировано') || actionLower.includes('план')) {
+      return { label: 'Запланировано', color: 'info' as const };
+    } else if (actionLower.includes('задерж') || actionLower.includes('отложен')) {
+      return { label: 'Задержка', color: 'warning' as const };
+    } else if (actionLower.includes('отмен') || actionLower.includes('отклонен')) {
+      return { label: 'Отменено', color: 'error' as const };
+    } else if (actionLower.includes('в работе') || actionLower.includes('выполняется')) {
+      return { label: 'В работе', color: 'primary' as const };
+    } else {
+      return { label: action, color: 'default' as const };
+    }
+  };
+
+  const fetchMaintenanceTasks = useCallback(async () => {
+    try {
+      setTasksLoading(true);
+      
+      const response = await apiClient.get<CCTVMaintenanceTask[]>('tblTasks');
+      
+      if (response && Array.isArray(response)) {
+        const cctvTasks = response.filter(task => {
+          const taskType = (task.type || '').toLowerCase();
+          const taskDevice = (task.device || '').toLowerCase();
+          
+          return taskType.includes('камера') || 
+                 taskType.includes('видео') ||
+                 taskType.includes('регистратор') ||
+                 taskType.includes('сервер') ||
+                 taskType.includes('nvr') ||
+                 taskType.includes('dvr') ||
+                 taskDevice.includes('камера') ||
+                 taskDevice.includes('видео') ||
+                 taskDevice.includes('cctv') ||
+                 taskDevice.includes('регистратор');
+        });
+        
+        setAllTasks(cctvTasks);
+        setMaintenanceTasks(cctvTasks);
+      } else {
+        setAllTasks([]);
+        setMaintenanceTasks([]);
+      }
+    } catch (err: any) {
+      console.error("Ошибка загрузки задач обслуживания CCTV:", err);
+      setSnackbar({
+        open: true,
+        message: "Ошибка загрузки данных обслуживания CCTV",
+        severity: "error",
+      });
+      setAllTasks([]);
+      setMaintenanceTasks([]);
+    } finally {
+      setTasksLoading(false);
+    }
+  }, []);
+
+  // ========== ЗАГРУЗКА УСТРОЙСТВ CCTV ==========
+  const filterCCTVDevices = useCallback((deviceData: any[]): CCTVDevice[] => {
+    return deviceData
+      .filter((device: any) => {
+        const group = (device.group || "").toLowerCase().trim();
+        const param = (device.param || "").toLowerCase();
+        const name = (device.name || "").toLowerCase();
+        
+        // Ищем устройства video/cctv
+        return group === "video" || 
+               group === "cctv" ||
+               param.startsWith("cam") ||
+               param.startsWith("rg") ||
+               param.startsWith("sc") ||
+               param.startsWith("sr") ||
+               name.includes("камера") ||
+               name.includes("видео") ||
+               name.includes("cctv") ||
+               name.includes("регистратор");
+      })
+      .map((device: any, index: number): CCTVDevice => {
+        const deviceType = mapDeviceType(device.type || device.description || device.name, device.param);
+
+        let status: "normal" | "warning" | "critical" = "normal";
+        if (device.status === "warning" || device.status === "Внимание") {
+          status = "warning";
+        } else if (device.status === "critical" || device.status === "Критично") {
+          status = "critical";
+        }
+
+        const deviceId = device.param || device.id || `cctv-${index}`;
+
+        return {
+          id: deviceId,
+          name: device.name || `Устройство ${deviceId}`,
+          type: deviceType,
+          status: status,
+          value: "Н/Д",
+          group: device.group,
+          deviceId: deviceId,
+          deviceName: device.name,
+          location: device.dislocation || "Не указано",
+          timestamp: device.timestamp || new Date().toISOString(),
+          description: device.description,
+          param: device.param,
+          active: device.active,
+          ipAddress: undefined,
+          resolution: "1080p",
+          fps: undefined,
+          storageUsage: undefined,
+          isOnline: device.active !== false,
+          currentValue: undefined,
+        };
+      });
+  }, []);
+
+  const fetchCCTVDevices = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const response = await apiClient.get("tblDevices");
+
+      if (response && Array.isArray(response)) {
+        const cctvDevices = filterCCTVDevices(response);
+        console.log(`📊 Найдено ${cctvDevices.length} устройств CCTV`);
+
+        // ЗАГРУЖАЕМ ТЕКУЩИЕ ЗНАЧЕНИЯ ИЗ tblValues
+        try {
+          const valuesResponse = await apiClient.get<TblValuesItem[]>('tblValues');
+          if (valuesResponse && Array.isArray(valuesResponse)) {
+            console.log(`📈 Загружено ${valuesResponse.length} текущих значений`);
+            
+            const updatedDevices = cctvDevices.map(device => {
+              if (device.param) {
+                // Ищем значение для параметра устройства
+                const deviceValue = valuesResponse.find((item: TblValuesItem) => 
+                  item.param === device.param ||
+                  item.name === device.param ||
+                  item.id === device.param
+                );
+                
+                if (deviceValue) {
+                  const valueStr = String(deviceValue.value || deviceValue.data || deviceValue.val || '0');
+                  const numericValue = parseFloat(valueStr.replace(',', '.'));
+                  
+                  if (!isNaN(numericValue)) {
+                    let unit = "ед.";
+                    if (device.param.startsWith('cam')) unit = 'fps';
+                    if (device.param.startsWith('rg')) unit = 'кБ/с';
+                    if (device.param.startsWith('sc')) unit = '%';
+                    if (device.param.startsWith('sr')) unit = 'ед.';
+                    
+                    return {
+                      ...device,
+                      value: `${numericValue.toFixed(2)} ${unit}`,
+                      currentValue: numericValue, // Сохраняем числовое значение
+                      timestamp: deviceValue.timestamp || deviceValue.time || deviceValue.created_at || new Date().toISOString()
+                    };
+                  }
+                } else {
+                  console.log(`⚠️ Не найдено значение для параметра: ${device.param}`);
+                }
+              }
+              return device;
+            });
+            
+            setDevices(updatedDevices);
+            setFilteredDevices(updatedDevices);
+            setEquipmentTotalCount(updatedDevices.length);
+            
+            // Автовыбор первого устройства
+            if (updatedDevices.length > 0 && !selectedNode) {
+              const firstDevice = updatedDevices[0];
+              setSelectedNode(firstDevice.id);
+              if (firstDevice.param) {
+                // Получаем префикс параметра для getDevicesHTF
+                const prefix = firstDevice.param.replace(/\d+$/, '');
+                await fetchHistoricalDataForDevice(firstDevice.id, prefix, firstDevice.param);
+              }
+            }
+          } else {
+            console.warn('⚠️ tblValues вернул не массив');
+            setDevices(cctvDevices);
+            setFilteredDevices(cctvDevices);
+            setEquipmentTotalCount(cctvDevices.length);
+          }
+        } catch (error) {
+          console.warn('⚠️ Ошибка загрузки значений:', error);
+          setDevices(cctvDevices);
+          setFilteredDevices(cctvDevices);
+          setEquipmentTotalCount(cctvDevices.length);
+        }
+
+        setError(null);
+      }
+    } catch (err: any) {
+      console.error("Ошибка загрузки устройств CCTV:", err);
+      setSnackbar({
+        open: true,
+        message: `Ошибка загрузки устройств CCTV: ${err.message}`,
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedNode, filterCCTVDevices]);
+
+  // ========== ОБНОВЛЕНИЕ ДАННЫХ ГРАФИКА ==========
+  const fetchHistoricalDataForDevice = useCallback(async (deviceId: string, paramPrefix: string, specificParam?: string) => {
+    console.log(`🔄 Загрузка исторических данных для устройства ${deviceId}, префикс: ${paramPrefix}`);
+    
+    try {
+      setRefreshing(true);
+      
+      // Получаем исторические данные по префиксу
+      const historicalData = await fetchFromGetDevicesHTF(paramPrefix);
+      
+      if (historicalData.length === 0) {
+        console.error('❌ Нет исторических данных для отображения');
+        setSnackbar({
+          open: true,
+          message: `Нет данных для префикса ${paramPrefix}`,
+          severity: 'warning'
+        });
+        return;
+      }
+      
+      // Если указан конкретный параметр, фильтруем данные для него
+      let filteredData = historicalData;
+      if (specificParam) {
+        filteredData = historicalData.filter(item => item.param === specificParam);
+        console.log(`📊 Для параметра ${specificParam} найдено ${filteredData.length} точек`);
+      }
+      
+      // Сортируем по времени
+      filteredData.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
+      setChartData(filteredData);
+      console.log(`✅ График обновлен: ${filteredData.length} точек`);
+      
+      // Обновляем текущее значение устройства
+      if (filteredData.length > 0) {
+        const latestValue = filteredData[filteredData.length - 1].value;
+        
+        setDevices(prev => prev.map(d => 
+          d.id === deviceId ? { 
+            ...d, 
+            currentValue: latestValue,
+            timestamp: filteredData[filteredData.length - 1].timestamp
+          } : d
+        ));
+      }
+      
+      setLastUpdate(new Date().toLocaleTimeString("ru-RU"));
+      
+    } catch (error: any) {
+      console.error('❌ Ошибка обновления графика:', error.message);
+      setSnackbar({
+        open: true,
+        message: `Ошибка загрузки графика: ${error.message}`,
+        severity: 'error',
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchFromGetDevicesHTF]);
+
+  // ========== WEB SOCKET ==========
+  useEffect(() => {
+    if (!TARGET_WS) {
+      console.warn("WebSocket URL не настроен");
+      return;
+    }
+
+    const ws = new WebSocket(TARGET_WS);
+    console.log("🔗 Подключение к WebSocket для CCTV:", TARGET_WS);
+
+    ws.onopen = () => {
+      console.log("✅ WebSocket подключен для CCTV");
+      setWsConnected(true);
+      
+      setSnackbar({
+        open: true,
+        message: "Реальное время подключено для CCTV",
+        severity: "success",
+      });
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "UPDATE") {
+          console.log("🔄 Обновление данных через WS");
+          setLastUpdate(new Date().toLocaleTimeString("ru-RU"));
+        }
+      } catch (error) {
+        console.error("❌ Ошибка обработки WS сообщения:", error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("❌ WebSocket ошибка:", error);
+      setWsConnected(false);
+      setSnackbar({
+        open: true,
+        message: "Ошибка подключения WebSocket",
+        severity: "error",
+      });
+    };
+
+    ws.onclose = () => {
+      console.log("🔌 WebSocket отключен");
+      setWsConnected(false);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
+
+  // ========== АВТООБНОВЛЕНИЕ ГРАФИКА (10 секунд) ==========
+  useEffect(() => {
+    if (!pollingActive || !selectedNode) return;
+    
+    const intervalId = setInterval(() => {
+      console.log('🔄 Автообновление данных CCTV');
+      const selectedDevice = devices.find(d => d.id === selectedNode);
+      if (selectedDevice?.param) {
+        const prefix = selectedDevice.param.replace(/\d+$/, '');
+        fetchHistoricalDataForDevice(selectedNode, prefix, selectedDevice.param);
+      }
+    }, 10000);
+    
+    return () => clearInterval(intervalId);
+  }, [pollingActive, selectedNode, devices, fetchHistoricalDataForDevice]);
+
+  // ========== ОБРАБОТЧИКИ ==========
+  const handleManualRefresh = useCallback(() => {
+    fetchCCTVDevices();
+    const selectedDevice = devices.find(d => d.id === selectedNode);
+    if (selectedDevice?.param) {
+      const prefix = selectedDevice.param.replace(/\d+$/, '');
+      fetchHistoricalDataForDevice(selectedNode, prefix, selectedDevice.param);
+    }
+    fetchMaintenanceTasks();
+  }, [fetchCCTVDevices, selectedNode, devices, fetchHistoricalDataForDevice, fetchMaintenanceTasks]);
+
+  const handleNodeClick = useCallback(async (nodeId: string) => {
+    setSelectedNode(nodeId);
+    
+    const device = devices.find(d => d.id === nodeId);
+    if (device?.param) {
+      const prefix = device.param.replace(/\d+$/, '');
+      await fetchHistoricalDataForDevice(nodeId, prefix, device.param);
+    }
+  }, [devices, fetchHistoricalDataForDevice]);
+
+  const handleAlarmClick = useCallback(async () => {
+    const device = devices.find((d) => d.id === selectedNode);
+    if (!device) {
+      setSnackbar({
+        open: true,
+        message: "Устройство не найдено",
+        severity: "warning",
+      });
+      return;
+    }
+
+    try {
+      const currentUser = localStorage.getItem('userName') || 'admin';
+      
+      await setAlarm({
+        parameter: device.param || device.id,
+        value: device.value || 'Н/Д',
+        user: currentUser
+      });
+
+      setSnackbar({
+        open: true,
+        message: `Сигнал тревоги отправлен для ${device.name}`,
+        severity: "success",
+      });
+    } catch (err: any) {
+      console.error('❌ Ошибка при отправке сигнала тревоги:', err);
+      setSnackbar({
+        open: true,
+        message: `Ошибка отправки сигнала тревоги: ${err.message || 'Неизвестная ошибка'}`,
+        severity: "error",
+      });
+    }
+  }, [devices, selectedNode, setAlarm]);
+
+  const renderAlarmButton = () => {
+    if (!selectedNode) return null;
+
+    return (
+      <Tooltip title="Отправить сигнал тревоги">
+        <Fab
+          color="error"
+          size="small"
+          onClick={handleAlarmClick}
+          disabled={alarmLoading}
+          sx={{ 
+            boxShadow: 2,
+            position: 'relative'
+          }}
+        >
+          {alarmLoading ? (
+            <CircularProgress size={20} color="inherit" />
+          ) : (
+            <WarningIcon />
+          )}
+        </Fab>
+      </Tooltip>
+    );
+  };
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setCurrentTab(newValue);
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  };
+
+  const handleEquipmentTypeChange = (event: SelectChangeEvent) => {
+    const type = event.target.value;
+    setSelectedEquipmentType(type);
+    
+    if (type === "all") {
+      setFilteredDevices(devices);
+      setEquipmentTotalCount(devices.length);
+    } else {
+      const filtered = devices.filter(device => 
+        device.type.toLowerCase() === type.toLowerCase()
+      );
+      setFilteredDevices(filtered);
+      setEquipmentTotalCount(filtered.length);
+    }
+    setEquipmentPage(1);
+    setSchemePage(1);
+  };
+
+  // ========== ОБРАБОТЧИКИ ПАГИНАЦИИ ==========
+  const handleSchemePageChange = (newPage: number) => {
+    setSchemePage(newPage);
+  };
+
+  const handleEquipmentPageChange = (newPage: number) => {
+    setEquipmentPage(newPage);
+  };
+
+  const handleEquipmentRowsPerPageChange = (newRowsPerPage: number) => {
+    setEquipmentRowsPerPage(newRowsPerPage);
+    setEquipmentPage(1);
+  };
+
+  const handleTasksPageChange = (newPage: number) => {
+    setTasksPage(newPage);
+  };
+
+  const handleTasksRowsPerPageChange = (newRowsPerPage: number) => {
+    setTasksRowsPerPage(newRowsPerPage);
+    setTasksPage(1);
+  };
+
+  // ========== ВЫЧИСЛЯЕМЫЕ ЗНАЧЕНИЯ ==========
+  const schemeTotalCount = filteredDevices.length;
+  const schemeTotalPages = Math.ceil(schemeTotalCount / schemeRowsPerPage);
+  const paginatedDevices = useMemo(() => {
+    const startIndex = (schemePage - 1) * schemeRowsPerPage;
+    const endIndex = startIndex + schemeRowsPerPage;
+    return filteredDevices.slice(startIndex, endIndex);
+  }, [filteredDevices, schemePage, schemeRowsPerPage]);
+
+  const equipmentPageDevices = useMemo(() => {
+    const startIndex = (equipmentPage - 1) * equipmentRowsPerPage;
+    const endIndex = startIndex + equipmentRowsPerPage;
+    return filteredDevices.slice(startIndex, endIndex);
+  }, [filteredDevices, equipmentPage, equipmentRowsPerPage]);
+
+  const paginatedTasks = useMemo(() => {
+    const startIndex = (tasksPage - 1) * tasksRowsPerPage;
+    const endIndex = startIndex + tasksRowsPerPage;
+    return allTasks.slice(startIndex, endIndex);
+  }, [allTasks, tasksPage, tasksRowsPerPage]);
+
+  const tasksTotalCount = allTasks.length;
+  const selectedDevice = useMemo(() => {
+    return devices.find((d) => d.id === selectedNode) || filteredDevices[0];
+  }, [devices, selectedNode, filteredDevices]);
+
+  // ========== ЭФФЕКТЫ ==========
+  useEffect(() => {
+    fetchCCTVDevices();
+    fetchMaintenanceTasks();
+  }, [fetchCCTVDevices, fetchMaintenanceTasks]);
+
+  // ========== РЕНДЕР ==========
+  return (
+    <Box sx={{ p: 3, height: "100vh", display: "flex", flexDirection: "column", gap: 3 }}>
+      {/* Шапка */}
+      <Paper sx={{ p: 3, borderRadius: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Videocam sx={{ fontSize: 40, color: "primary.main" }} />
+            <Box>
+              <Typography variant="h4">Система видеонаблюдения</Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", mt: 1 }}>
+                {wsConnected ? (
+                  <Chip
+                    icon={<CheckCircle fontSize="small" />}
+                    label="WS подключен"
+                    color="success"
+                    size="small"
+                    variant="outlined"
+                  />
+                ) : (
+                  <Chip
+                    icon={<WarningIcon fontSize="small" />}
+                    label="WS отключен"
+                    color="warning"
+                    size="small"
+                    variant="outlined"
+                  />
+                )}
+                <Chip
+                  label={`${devices.length} устройств`}
+                  color="info"
+                  size="small"
+                  variant="outlined"
+                />
+                <Typography variant="caption" color="text.secondary">
+                  Автообновление: {pollingActive ? 'вкл (10 сек)' : 'выкл'}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Последнее обновление: {lastUpdate}
+            </Typography>
+          </Box>
+
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={pollingActive}
+                  onChange={(e) => setPollingActive(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="Автообновление"
+              labelPlacement="start"
+              sx={{ m: 0 }}
+            />
+
+            <Tooltip title="Обновить все данные">
+              <IconButton
+                onClick={handleManualRefresh}
+                disabled={refreshing || loading}
+              >
+                <Refresh />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        )}
+      </Paper>
+
+      {/* Табы */}
+      <Paper>
+        <Tabs value={currentTab} onChange={handleTabChange} variant="fullWidth">
+          <Tab icon={<Schema />} iconPosition="start" label="Мнемосхема" />
+          <Tab icon={<Build />} iconPosition="start" label="Оборудование" />
+          <Tab icon={<Schedule />} iconPosition="start" label="Расписание обслуживания" />
+        </Tabs>
+      </Paper>
+
+      {/* Контент табов */}
+      <Box sx={{ flex: 1, overflow: "hidden" }}>
+        {/* Вкладка Мнемосхема */}
+        <TabPanel value={currentTab} index={0}>
+          <Grid container spacing={3} sx={{ height: "100%", minHeight: "600px" }}>
+            {/* Левая колонка: Схема */}
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ height: "100%", p: 3, display: "flex", flexDirection: "column" }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Схема системы видеонаблюдения
+                  </Typography>
+                  {renderAlarmButton()}
+                </Box>
+
+                {/* Схема 3x3 с пагинацией */}
+                <Box sx={{ flex: 1, position: "relative", bgcolor: "#f8f9fa", borderRadius: 2, overflow: "auto", mb: 3, p: 2, display: "flex", flexDirection: "column" }}>
+                  {loading ? (
+                    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
+                      <CircularProgress />
+                    </Box>
+                  ) : filteredDevices.length === 0 ? (
+                    <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100%", gap: 2 }}>
+                      <Typography variant="body1" color="text.secondary">
+                        Нет устройств CCTV для отображения
+                      </Typography>
+                      <Button variant="outlined" startIcon={<Refresh />} onClick={handleManualRefresh}>
+                        Обновить
+                      </Button>
+                    </Box>
+                  ) : (
+                    <>
+                      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2, flex: 1, mb: 2 }}>
+                        {paginatedDevices.map((device) => (
+                          <Card
+                            key={device.id}
+                            onClick={() => handleNodeClick(device.id)}
+                            sx={{
+                              cursor: "pointer",
+                              transition: "all 0.3s",
+                              border: selectedNode === device.id ? "2px solid #1976d2" : "1px solid #e0e0e0",
+                              backgroundColor: selectedNode === device.id ? "primary.50" : "white",
+                              position: "relative",
+                              "&:hover": { transform: "translateY(-2px)", boxShadow: 4 },
+                              minHeight: "120px",
+                            }}
+                          >
+                            <CardContent sx={{ p: 2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                              <Avatar sx={{ bgcolor: `${getStatusColor(device.status)}.light`, color: `${getStatusColor(device.status)}.dark`, mb: 1, width: 40, height: 40 }}>
+                                {getDeviceIcon(device.type)}
+                              </Avatar>
+                              <Typography variant="caption" fontWeight="bold" align="center" noWrap>
+                                {device.name}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" align="center">
+                                {device.param || device.id}
+                              </Typography>
+                              <Chip size="small" label={device.status === "normal" ? "Норма" : device.status === "warning" ? "Внимание" : "Критично"} color={getStatusColor(device.status)} sx={{ mt: 1 }} />
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </Box>
+
+                      {/* Пагинация схемы */}
+                      {schemeTotalCount > schemeRowsPerPage && (
+                        <Box sx={{ mt: 'auto', pt: 2, borderTop: '1px solid #e0e0e0' }}>
+                          <ReportPagination
+                            page={schemePage}
+                            rowsPerPage={schemeRowsPerPage}
+                            totalRows={schemeTotalCount}
+                            onPageChange={handleSchemePageChange}
+                            onRowsPerPageChange={() => {}}
+                            disabled={loading}
+                          />
+                        </Box>
+                      )}
+                    </>
+                  )}
+                </Box>
+
+                {/* Информация о выбранном устройстве */}
+                {selectedDevice && (
+                  <Paper sx={{ p: 2, bgcolor: "grey.50" }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Выбранное устройство:
+                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      <Avatar sx={{ bgcolor: `${getStatusColor(selectedDevice.status)}.light`, color: `${getStatusColor(selectedDevice.status)}.dark` }}>
+                        {getDeviceIcon(selectedDevice.type)}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="body1" fontWeight="medium">
+                          {selectedDevice.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          ID: {selectedDevice.param || selectedDevice.id} • Тип: {selectedDevice.type}
+                        </Typography>
+                        <Typography variant="body2" color="primary" sx={{ mt: 0.5 }}>
+                          Текущее значение: {formatDeviceValue(selectedDevice)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Paper>
+                )}
+              </Paper>
+            </Grid>
+
+            {/* Правая колонка: График и информация */}
+            <Grid item xs={12} md={6}>
+              <Grid container spacing={3} sx={{ height: "100%" }}>
+                {/* График */}
+                <Grid item xs={12}>
+                  <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+                    <CardHeader
+                      title={
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <ShowChart color="primary" />
+                          <Typography variant="h6">
+                            {selectedDevice?.name || "Видеоактивность"} - Мониторинг
+                          </Typography>
+                          {refreshing && <CircularProgress size={20} />}
+                        </Box>
+                      }
+                      subheader={
+                        <Box>
+                          <Typography variant="caption">
+                            Обновлено: {lastUpdate}
+                          </Typography>
+                          {chartData.length > 0 && (
+                            <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
+                              Точек: {chartData.length} • 
+                              От {chartData[0]?.timestamp?.substring(11, 19) || 'N/A'} до {chartData[chartData.length - 1]?.timestamp?.substring(11, 19) || 'N/A'}
+                            </Typography>
+                          )}
+                        </Box>
+                      }
+                      action={
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Tooltip title="Проверить данные устройства">
+                            <IconButton
+                              onClick={async () => {
+                                if (selectedDevice?.param) {
+                                  const prefix = selectedDevice.param.replace(/\d+$/, '');
+                                  console.log(`🧪 Тест устройства: ${selectedDevice.name} (${selectedDevice.param}), префикс: ${prefix}`);
+                                  const data = await fetchFromGetDevicesHTF(prefix);
+                                  console.log(`📊 Получено ${data.length} точек данных`);
+                                }
+                              }}
+                              size="small"
+                            >
+                              <Visibility />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Обновить график">
+                            <IconButton 
+                              onClick={() => {
+                                if (selectedDevice?.param) {
+                                  const prefix = selectedDevice.param.replace(/\d+$/, '');
+                                  fetchHistoricalDataForDevice(selectedNode, prefix, selectedDevice.param);
+                                }
+                              }} 
+                              disabled={refreshing || !selectedDevice?.param}
+                              size="small"
+                            >
+                              <Refresh />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      }
+                    />
+                    <CardContent sx={{ flex: 1, p: 2 }}>
+                      <Box sx={{ height: "250px", width: "100%" }}>
+                        <CCTVChart
+                          data={chartData}
+                          title={selectedDevice ? `${selectedDevice.name} - активность` : "Видеоактивность"}
+                          color="#1976d2"
+                          unit={selectedDevice?.param?.startsWith('cam') ? 'fps' : 
+                                selectedDevice?.param?.startsWith('sc') ? '%' : 'ед.'}
+                          isLoading={refreshing}
+                        />
+                      </Box>
+
+                      <Box sx={{ mt: 2, display: "flex", justifyContent: "space-between" }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Отображается: {chartData.length > 50 ? 50 : chartData.length} из {chartData.length} точек
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {chartData.length > 0 &&
+                            `Диапазон: ${Math.min(...chartData.map(d => d.value)).toFixed(1)} - ${Math.max(...chartData.map(d => d.value)).toFixed(1)}`}
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Детальная информация */}
+                <Grid item xs={12}>
+                  <Card sx={{ height: "100%" }}>
+                    <CardHeader
+                      title={
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Settings color="primary" />
+                          <Typography variant="h6">
+                            Информация об устройстве
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                    <CardContent>
+                      {selectedDevice ? (
+                        <Box>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
+                            <Avatar sx={{ bgcolor: `${getStatusColor(selectedDevice.status)}.light`, color: `${getStatusColor(selectedDevice.status)}.main`, width: 60, height: 60 }}>
+                              {getDeviceIcon(selectedDevice.type)}
+                            </Avatar>
+                            <Box>
+                              <Typography variant="h6">{selectedDevice.name}</Typography>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
+                                <Chip label={selectedDevice.status === "normal" ? "Норма" : selectedDevice.status === "warning" ? "Внимание" : "Критично"} color={getStatusColor(selectedDevice.status)} size="small" />
+                                <Chip label={selectedDevice.type} variant="outlined" size="small" />
+                              </Box>
+                            </Box>
+                          </Box>
+
+                          {selectedDevice.currentValue !== undefined && (
+                            <Paper
+                              sx={{
+                                p: 2,
+                                mb: 2,
+                                bgcolor: "primary.light",
+                                color: "primary.contrastText",
+                              }}
+                            >
+                              <Typography variant="subtitle2">
+                                Текущее значение
+                              </Typography>
+                              <Typography
+                                variant="h4"
+                                sx={{ fontWeight: "bold" }}
+                              >
+                                {selectedDevice.currentValue.toFixed(2)}
+                                {selectedDevice.param?.startsWith('cam') ? 'fps' : 
+                                 selectedDevice.param?.startsWith('sc') ? '%' : 'ед.'}
+                              </Typography>
+                              <Typography variant="caption">
+                                {selectedDevice.timestamp ? 
+                                  new Date(selectedDevice.timestamp).toLocaleTimeString('ru-RU') : 
+                                  'N/A'}
+                              </Typography>
+                            </Paper>
+                          )}
+
+                          <Grid container spacing={2} sx={{ mb: 3 }}>
+                            <Grid item xs={6}>
+                              <Typography variant="caption" color="text.secondary">Параметр</Typography>
+                              <Typography variant="body2">{selectedDevice.param || "Н/Д"}</Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography variant="caption" color="text.secondary">Текущее значение</Typography>
+                              <Typography variant="body2" fontWeight="medium">{formatDeviceValue(selectedDevice)}</Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography variant="caption" color="text.secondary">Группа</Typography>
+                              <Typography variant="body2">{selectedDevice.group || "Не указана"}</Typography>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <Typography variant="caption" color="text.secondary">Статус</Typography>
+                              <Typography variant="body2">
+                                {selectedDevice.status === "normal" ? "Норма" : 
+                                 selectedDevice.status === "warning" ? "Внимание" : 
+                                 "Критично"}
+                              </Typography>
+                            </Grid>
+                          </Grid>
+
+                          <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
+                            <Button 
+                              size="small" 
+                              startIcon={<History />} 
+                              variant="outlined"
+                              onClick={() => {
+                                setSnackbar({
+                                  open: true,
+                                  message: `Открыта история для ${selectedDevice.name}`,
+                                  severity: "info",
+                                });
+                              }}
+                            >
+                              История
+                            </Button>
+                            <Button 
+                              size="small" 
+                              startIcon={<Assignment />} 
+                              variant="outlined"
+                              onClick={() => {
+                                setSnackbar({
+                                  open: true,
+                                  message: `Создана заявка для ${selectedDevice.name}`,
+                                  severity: "info",
+                                });
+                              }}
+                            >
+                              Заявка
+                            </Button>
+                          </Box>
+                        </Box>
+                      ) : (
+                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", p: 3 }}>
+                          <Typography variant="h6" color="text.secondary" gutterBottom>
+                            Выберите устройство на схеме
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" align="center">
+                            Нажмите на любой элемент схемы для просмотра подробной информации и графика активности
+                          </Typography>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Grid>
+          </Grid>
+        </TabPanel>
+
+        {/* Вкладка Оборудование */}
+        <TabPanel value={currentTab} index={1}>
+          <Paper sx={{ p: 3 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+              <Typography variant="h5">
+                Оборудование системы видеонаблюдения
+              </Typography>
+              <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel>Фильтр по типу</InputLabel>
+                  <Select value={selectedEquipmentType} label="Фильтр по типу" onChange={handleEquipmentTypeChange}>
+                    <MenuItem value="all">Все типы</MenuItem>
+                    <MenuItem value="camera">Камеры</MenuItem>
+                    <MenuItem value="recorder">Регистраторы</MenuItem>
+                    <MenuItem value="server">Серверы</MenuItem>
+                    <MenuItem value="scanner">Сканеры</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <Button variant="outlined" startIcon={<Refresh />} onClick={handleManualRefresh} disabled={loading}>
+                  Обновить
+                </Button>
+              </Box>
+            </Box>
+
+            <TableContainer component={Paper} variant="outlined">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Параметр</TableCell>
+                    <TableCell>Наименование</TableCell>
+                    <TableCell>Тип</TableCell>
+                    <TableCell>Статус</TableCell>
+                    <TableCell>Значение</TableCell>
+                    <TableCell>Группа</TableCell>
+                    <TableCell>Местоположение</TableCell>
+                    <TableCell>Последнее обновление</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {equipmentPageDevices.length > 0 ? (
+                    equipmentPageDevices.map((device) => (
+                      <TableRow 
+                        key={device.id} 
+                        hover 
+                        sx={{ 
+                          cursor: "pointer", 
+                          "&:hover": { backgroundColor: "action.hover" },
+                          backgroundColor: device.id === selectedNode ? "action.selected" : "inherit"
+                        }} 
+                        onClick={() => {
+                          setSelectedNode(device.id);
+                          setCurrentTab(0);
+                        }}
+                      >
+                        <TableCell><Chip label={device.param || device.id} size="small" variant="outlined" /></TableCell>
+                        <TableCell><Typography variant="body1" fontWeight="medium">{device.name}</Typography></TableCell>
+                        <TableCell><Chip label={device.type} size="small" variant="outlined" /></TableCell>
+                        <TableCell>
+                          <Chip 
+                            icon={getStatusIcon(device.status)} 
+                            label={device.status === "normal" ? "Норма" : device.status === "warning" ? "Внимание" : "Критично"} 
+                            color={getStatusColor(device.status)} 
+                            size="small" 
+                          />
+                        </TableCell>
+                        <TableCell><Typography variant="body2">{formatDeviceValue(device)}</Typography></TableCell>
+                        <TableCell>{device.group || "Не указана"}</TableCell>
+                        <TableCell>{device.location || "Не указано"}</TableCell>
+                        <TableCell>
+                          {device.timestamp ? (
+                            <Typography variant="caption">{new Date(device.timestamp).toLocaleString("ru-RU")}</Typography>
+                          ) : (
+                            "Н/Д"
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                        {loading ? (
+                          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                            <CircularProgress size={24} />
+                            <Typography>Загрузка данных оборудования...</Typography>
+                          </Box>
+                        ) : (
+                          <Typography variant="body1" color="text.secondary">
+                            Нет данных оборудования
+                          </Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* Пагинация оборудования */}
+            {equipmentTotalCount > 0 && (
+              <ReportPagination
+                page={equipmentPage}
+                rowsPerPage={equipmentRowsPerPage}
+                totalRows={equipmentTotalCount}
+                onPageChange={handleEquipmentPageChange}
+                onRowsPerPageChange={handleEquipmentRowsPerPageChange}
+                disabled={loading}
+              />
+            )}
+          </Paper>
+        </TabPanel>
+
+        {/* Вкладка Расписание обслуживания */}
+        <TabPanel value={currentTab} index={2}>
+          <Paper sx={{ p: 3 }}>
+            <Box sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 3,
+            }}>
+              <Typography variant="h5">
+                Расписание обслуживания CCTV
+                {tasksLoading && (
+                  <CircularProgress size={20} sx={{ ml: 2 }} />
+                )}
+              </Typography>
+              <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<Refresh />}
+                  onClick={fetchMaintenanceTasks}
+                  disabled={tasksLoading}
+                >
+                  Обновить
+                </Button>
+              </Box>
+            </Box>
+
+            {allTasks.length === 0 ? (
+              <Box sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                py: 6,
+                textAlign: "center",
+              }}>
+                {tasksLoading ? (
+                  <>
+                    <CircularProgress size={40} sx={{ mb: 2 }} />
+                    <Typography>Загрузка данных обслуживания...</Typography>
+                  </>
+                ) : (
+                  <>
+                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                      Нет задач обслуживания
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Задачи обслуживания для CCTV оборудования не найдены
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Refresh />}
+                      onClick={fetchMaintenanceTasks}
+                      sx={{ mt: 2 }}
+                    >
+                      Попробовать снова
+                    </Button>
+                  </>
+                )}
+              </Box>
+            ) : (
+              <>
+                <TableContainer component={Paper} variant="outlined">
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>ID</TableCell>
+                        <TableCell>Оборудование</TableCell>
+                        <TableCell>Тип оборудования</TableCell>
+                        <TableCell>Тип работы</TableCell>
+                        <TableCell>Планируемая дата</TableCell>
+                        <TableCell>Статус</TableCell>
+                        <TableCell>Ответственный</TableCell>
+                        <TableCell>Факт. дата</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {paginatedTasks.map((task) => {
+                        const statusInfo = getTaskStatusInfo(task.action);
+                        const plannedDate = new Date(task.taskDate);
+                        const isOverdue = task.realDate === null && plannedDate < new Date();
+                        
+                        const relatedDevice = devices.find(d => 
+                          d.name?.toLowerCase().includes(task.device.toLowerCase()) ||
+                          task.device.toLowerCase().includes(d.name?.toLowerCase() || '')
+                        );
+                        
+                        return (
+                          <TableRow 
+                            key={task.id} 
+                            hover
+                            sx={{
+                              cursor: "pointer",
+                              backgroundColor: isOverdue ? '#fff8e1' : 'inherit',
+                              '&:hover': { backgroundColor: isOverdue ? '#fff5d6' : 'action.hover' },
+                            }}
+                          >
+                            <TableCell>
+                              <Chip
+                                label={`#${task.id}`}
+                                size="small"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {relatedDevice && (
+                                  <Avatar
+                                    sx={{
+                                      width: 32,
+                                      height: 32,
+                                      bgcolor: `${getStatusColor(relatedDevice.status)}.light`,
+                                    }}
+                                  >
+                                    {getDeviceIcon(relatedDevice.type)}
+                                  </Avatar>
+                                )}
+                                <Typography variant="body1">
+                                  {task.device}
+                                </Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={task.type}
+                                size="small"
+                                variant="outlined"
+                              />
+                            </TableCell>
+                            <TableCell>{task.task}</TableCell>
+                            <TableCell>
+                              <Box>
+                                <Typography variant="body2">
+                                  {plannedDate.toLocaleDateString("ru-RU")}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {plannedDate.toLocaleTimeString("ru-RU", {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </Typography>
+                                {isOverdue && (
+                                  <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
+                                    Просрочено
+                                  </Typography>
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={statusInfo.label}
+                                color={statusInfo.color}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>{task.user}</TableCell>
+                            <TableCell>
+                              {task.realDate ? (
+                                <Typography variant="body2">
+                                  {new Date(task.realDate).toLocaleDateString("ru-RU")}
+                                </Typography>
+                              ) : (
+                                <Typography variant="body2" color="text.secondary" fontStyle="italic">
+                                  Не выполнено
+                                </Typography>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+
+                {/* Пагинация задач */}
+                {allTasks.length > 0 && (
+                  <ReportPagination
+                    page={tasksPage}
+                    rowsPerPage={tasksRowsPerPage}
+                    totalRows={tasksTotalCount}
+                    onPageChange={handleTasksPageChange}
+                    onRowsPerPageChange={handleTasksRowsPerPageChange}
+                    disabled={tasksLoading}
+                  />
+                )}
+
+                {/* Статистика */}
+                <Paper sx={{ p: 2, mt: 3, bgcolor: 'grey.50' }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h6" color="primary">
+                          {tasksTotalCount}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Всего задач
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h6" color="success.main">
+                          {allTasks.filter(t => t.action.toLowerCase().includes('выполнено')).length}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Выполнено
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h6" color="info.main">
+                          {allTasks.filter(t => t.action.toLowerCase().includes('запланировано')).length}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Запланировано
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Typography variant="h6" color="warning.main">
+                          {allTasks.filter(t => 
+                            t.realDate === null && new Date(t.taskDate) < new Date()
+                          ).length}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Просрочено
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </>
+            )}
+          </Paper>
+        </TabPanel>
+      </Box>
+
+      {/* Снекбар */}
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={3000} 
+        onClose={handleCloseSnackbar} 
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+};

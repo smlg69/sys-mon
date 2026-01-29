@@ -328,6 +328,7 @@ export const ReportsPage: React.FC = () => {
     }
   };
 
+    
   // Обработчик создания отчета
   const handleGenerateReport = () => {
     if (!reportType) return;
