@@ -12,22 +12,24 @@ import {
   Sensors,
 } from "@mui/icons-material";
 import { apiClient } from "../api/client";
-import { useAlert } from '../hooks/useAlert';
+import { useAlert } from "../hooks/useAlert";
 import { HVACSystemPageView } from "../components/hvac/HVACSystemPageView";
-import { 
-  HVACDevice, 
-  TemperatureDataPoint, 
+import {
+  HVACDevice,
+  TemperatureDataPoint,
   HVACMaintenanceTask,
-  TblValuesItem 
+  TblValuesItem,
 } from "../types/hvac";
 
 // Константы
-const TARGET_WS = process.env.REACT_APP_TARGET_WS;
+const WS_URL = process.env.REACT_APP_WS_URL;
 const FUNCTIONS = process.env.REACT_APP_FUNCTIONS;
 
 export const HVACSystemPage: React.FC = () => {
   // ========== СОСТОЯНИЯ ==========
-  const [temperatureData, setTemperatureData] = useState<TemperatureDataPoint[]>([]);
+  const [temperatureData, setTemperatureData] = useState<
+    TemperatureDataPoint[]
+  >([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,15 +48,17 @@ export const HVACSystemPage: React.FC = () => {
   const [equipmentPage, setEquipmentPage] = useState<number>(1);
   const [equipmentRowsPerPage, setEquipmentRowsPerPage] = useState<number>(10);
   const [equipmentTotalCount, setEquipmentTotalCount] = useState<number>(0);
-  
-  const [maintenanceTasks, setMaintenanceTasks] = useState<HVACMaintenanceTask[]>([]);
+
+  const [maintenanceTasks, setMaintenanceTasks] = useState<
+    HVACMaintenanceTask[]
+  >([]);
   const [allTasks, setAllTasks] = useState<HVACMaintenanceTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState<boolean>(true);
   const [tasksPage, setTasksPage] = useState<number>(1);
   const [tasksRowsPerPage, setTasksRowsPerPage] = useState<number>(10);
 
   const { setAlarm, loading: alarmLoading } = useAlert();
-  
+
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -64,34 +68,51 @@ export const HVACSystemPage: React.FC = () => {
   // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case "normal": case "норма": return "success";
-      case "warning": case "внимание": return "warning";
-      case "critical": case "критично": return "error";
-      default: return "default";
+      case "normal":
+      case "норма":
+        return "success";
+      case "warning":
+      case "внимание":
+        return "warning";
+      case "critical":
+      case "критично":
+        return "error";
+      default:
+        return "default";
     }
   };
 
   const getStatusIcon = (status: string): React.ReactElement => {
     switch (status.toLowerCase()) {
-      case "normal": case "норма": 
+      case "normal":
+      case "норма":
         return <CheckCircle fontSize="small" />;
-      case "warning": case "внимание": 
+      case "warning":
+      case "внимание":
         return <WarningIcon fontSize="small" />;
-      case "critical": case "критично": 
+      case "critical":
+      case "критично":
         return <ErrorIcon fontSize="small" />;
-      default: 
+      default:
         return <CheckCircle fontSize="small" />;
     }
   };
 
   const getDeviceIcon = (type: string): React.ReactNode => {
     switch (type.toLowerCase()) {
-      case "boiler": return <Whatshot />;
-      case "pump": return <InvertColors />;
-      case "ventilation": case "vent": return <Toys />;
-      case "shield": return <ElectricBolt />;
-      case "sensor": return <Sensors />;
-      default: return <Sensors />;
+      case "boiler":
+        return <Whatshot />;
+      case "pump":
+        return <InvertColors />;
+      case "ventilation":
+      case "vent":
+        return <Toys />;
+      case "shield":
+        return <ElectricBolt />;
+      case "sensor":
+        return <Sensors />;
+      default:
+        return <Sensors />;
     }
   };
 
@@ -104,106 +125,148 @@ export const HVACSystemPage: React.FC = () => {
 
   const mapDeviceType = (deviceType: string, param?: string): string => {
     if (!deviceType) {
-      if (param?.startsWith('t') || param?.startsWith('tu')) return "sensor";
-      if (param?.startsWith('p')) return "pump";
-      if (param?.startsWith('fw') || param?.startsWith('fa')) return "ventilation";
-      if (param?.startsWith('fh')) return "sensor";
+      if (param?.startsWith("t") || param?.startsWith("tu")) return "sensor";
+      if (param?.startsWith("p")) return "pump";
+      if (param?.startsWith("fw") || param?.startsWith("fa"))
+        return "ventilation";
+      if (param?.startsWith("fh")) return "sensor";
       return "sensor";
     }
 
     const typeLower = deviceType.toLowerCase();
 
-    if (typeLower.includes("бойлер") || typeLower.includes("boiler") || typeLower.includes("котел") || typeLower.includes("теплов")) {
+    if (
+      typeLower.includes("бойлер") ||
+      typeLower.includes("boiler") ||
+      typeLower.includes("котел") ||
+      typeLower.includes("теплов")
+    ) {
       return "boiler";
     }
-    if (typeLower.includes("насос") || typeLower.includes("pump") || typeLower.includes("клапан")) {
+    if (
+      typeLower.includes("насос") ||
+      typeLower.includes("pump") ||
+      typeLower.includes("клапан")
+    ) {
       return "pump";
     }
-    if (typeLower.includes("вентиля") || typeLower.includes("vent") || typeLower.includes("fan") || typeLower.includes("air")) {
+    if (
+      typeLower.includes("вентиля") ||
+      typeLower.includes("vent") ||
+      typeLower.includes("fan") ||
+      typeLower.includes("air")
+    ) {
       return "ventilation";
     }
-    if (typeLower.includes("щит") || typeLower.includes("shield") || typeLower.includes("control") || typeLower.includes("панель") || typeLower.includes("сервер")) {
+    if (
+      typeLower.includes("щит") ||
+      typeLower.includes("shield") ||
+      typeLower.includes("control") ||
+      typeLower.includes("панель") ||
+      typeLower.includes("сервер")
+    ) {
       return "shield";
     }
     return "sensor";
   };
 
   // ========== ФУНКЦИИ ДЛЯ ПОЛУЧЕНИЯ РЕАЛЬНЫХ ДАННЫХ ==========
-  const fetchFromGetDevicesHTF = useCallback(async (paramPrefix: string): Promise<any[]> => {
-    try {
-      console.log('🔍 fetchFromGetDevicesHTF для префикса:', paramPrefix);
-      
-      const functionsBase = FUNCTIONS;
-      if (!functionsBase) {
-        console.error('❌ FUNCTIONS не определен в env');
+  const fetchFromGetDevicesHTF = useCallback(
+    async (paramPrefix: string): Promise<any[]> => {
+      try {
+        console.log("🔍 fetchFromGetDevicesHTF для префикса:", paramPrefix);
+
+        const functionsBase = FUNCTIONS;
+        if (!functionsBase) {
+          console.error("❌ FUNCTIONS не определен в env");
+          return [];
+        }
+
+        const requestData = [{ param: paramPrefix }];
+
+        const response = await apiClient.post<any[]>(
+          "getDevicesHTF",
+          requestData,
+          {
+            baseURL: functionsBase,
+            headers: { "Content-Type": "application/json" },
+            timeout: 5000,
+          },
+        );
+
+        if (response && Array.isArray(response)) {
+          console.log(
+            `📥 Получено ${response.length} записей из getDevicesHTF`,
+          );
+          return response;
+        }
+
+        return [];
+      } catch (error: any) {
+        console.error("❌ Ошибка getDevicesHTF:", error.message);
         return [];
       }
-      
-      const requestData = [{ param: paramPrefix }];
-      
-      const response = await apiClient.post<any[]>(
-        'getDevicesHTF',
-        requestData,
-        { 
-          baseURL: functionsBase,
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 5000
-        }
-      );
-      
-      if (response && Array.isArray(response)) {
-        console.log(`📥 Получено ${response.length} записей из getDevicesHTF`);
-        return response;
-      }
-      
-      return [];
-      
-    } catch (error: any) {
-      console.error('❌ Ошибка getDevicesHTF:', error.message);
-      return [];
-    }
-  }, []);
+    },
+    [],
+  );
 
   // ========== ФУНКЦИИ ДЛЯ ОБСЛУЖИВАНИЯ ==========
   const getTaskStatusInfo = (action: string) => {
     const actionLower = action.toLowerCase();
-    
-    if (actionLower.includes('выполнено') || actionLower.includes('завершено')) {
-      return { label: 'Выполнено', color: 'success' as const };
-    } else if (actionLower.includes('запланировано') || actionLower.includes('план')) {
-      return { label: 'Запланировано', color: 'info' as const };
-    } else if (actionLower.includes('задерж') || actionLower.includes('отложен')) {
-      return { label: 'Задержка', color: 'warning' as const };
-    } else if (actionLower.includes('отмен') || actionLower.includes('отклонен')) {
-      return { label: 'Отменено', color: 'error' as const };
-    } else if (actionLower.includes('в работе') || actionLower.includes('выполняется')) {
-      return { label: 'В работе', color: 'primary' as const };
+
+    if (
+      actionLower.includes("выполнено") ||
+      actionLower.includes("завершено")
+    ) {
+      return { label: "Выполнено", color: "success" as const };
+    } else if (
+      actionLower.includes("запланировано") ||
+      actionLower.includes("план")
+    ) {
+      return { label: "Запланировано", color: "info" as const };
+    } else if (
+      actionLower.includes("задерж") ||
+      actionLower.includes("отложен")
+    ) {
+      return { label: "Задержка", color: "warning" as const };
+    } else if (
+      actionLower.includes("отмен") ||
+      actionLower.includes("отклонен")
+    ) {
+      return { label: "Отменено", color: "error" as const };
+    } else if (
+      actionLower.includes("в работе") ||
+      actionLower.includes("выполняется")
+    ) {
+      return { label: "В работе", color: "primary" as const };
     } else {
-      return { label: action, color: 'default' as const };
+      return { label: action, color: "default" as const };
     }
   };
 
   const fetchMaintenanceTasks = useCallback(async () => {
     try {
       setTasksLoading(true);
-      
-      const response = await apiClient.get<HVACMaintenanceTask[]>('tblTasks');
-      
+
+      const response = await apiClient.get<HVACMaintenanceTask[]>("tblTasks");
+
       if (response && Array.isArray(response)) {
-        const hvacTasks = response.filter(task => {
-          const taskType = (task.type || '').toLowerCase();
-          const taskDevice = (task.device || '').toLowerCase();
-          
-          return taskType.includes('насос') || 
-                 taskType.includes('теплов') ||
-                 taskType.includes('вентиля') ||
-                 taskType.includes('котел') ||
-                 taskType.includes('бойлер') ||
-                 taskDevice.includes('насос') ||
-                 taskDevice.includes('теплов') ||
-                 taskDevice.includes('вентиля');
+        const hvacTasks = response.filter((task) => {
+          const taskType = (task.type || "").toLowerCase();
+          const taskDevice = (task.device || "").toLowerCase();
+
+          return (
+            taskType.includes("насос") ||
+            taskType.includes("теплов") ||
+            taskType.includes("вентиля") ||
+            taskType.includes("котел") ||
+            taskType.includes("бойлер") ||
+            taskDevice.includes("насос") ||
+            taskDevice.includes("теплов") ||
+            taskDevice.includes("вентиля")
+          );
         });
-        
+
         setAllTasks(hvacTasks);
         setMaintenanceTasks(hvacTasks);
       } else {
@@ -231,26 +294,34 @@ export const HVACSystemPage: React.FC = () => {
         const group = (device.group || "").toLowerCase().trim();
         const param = (device.param || "").toLowerCase();
         const name = (device.name || "").toLowerCase();
-        
-        return group === "hvac" || 
-               param.startsWith("t") ||
-               param.startsWith("tu") ||
-               param.startsWith("p") ||
-               param.startsWith("fw") ||
-               param.startsWith("fa") ||
-               name.includes("насос") ||
-               name.includes("теплов") ||
-               name.includes("вентиля") ||
-               name.includes("котел") ||
-               name.includes("бойлер");
+
+        return (
+          group === "hvac" ||
+          param.startsWith("t") ||
+          param.startsWith("tu") ||
+          param.startsWith("p") ||
+          param.startsWith("fw") ||
+          param.startsWith("fa") ||
+          name.includes("насос") ||
+          name.includes("теплов") ||
+          name.includes("вентиля") ||
+          name.includes("котел") ||
+          name.includes("бойлер")
+        );
       })
       .map((device: any, index: number): HVACDevice => {
-        const deviceType = mapDeviceType(device.type || device.description || device.name, device.param);
+        const deviceType = mapDeviceType(
+          device.type || device.description || device.name,
+          device.param,
+        );
 
         let status: "normal" | "warning" | "critical" = "normal";
         if (device.status === "warning" || device.status === "Внимание") {
           status = "warning";
-        } else if (device.status === "critical" || device.status === "Критично") {
+        } else if (
+          device.status === "critical" ||
+          device.status === "Критично"
+        ) {
           status = "critical";
         }
 
@@ -287,53 +358,76 @@ export const HVACSystemPage: React.FC = () => {
         console.log(`📊 Найдено ${hvacDevices.length} устройств HVAC`);
 
         try {
-          const valuesResponse = await apiClient.get<TblValuesItem[]>('tblValues');
+          const valuesResponse =
+            await apiClient.get<TblValuesItem[]>("tblValues");
           if (valuesResponse && Array.isArray(valuesResponse)) {
-            console.log(`📈 Загружено ${valuesResponse.length} текущих значений`);
-            
-            const updatedDevices = hvacDevices.map(device => {
+            console.log(
+              `📈 Загружено ${valuesResponse.length} текущих значений`,
+            );
+
+            const updatedDevices = hvacDevices.map((device) => {
               if (device.param) {
-                const deviceValue = valuesResponse.find((item: TblValuesItem) => 
-                  item.param === device.param ||
-                  item.name === device.param ||
-                  item.id === device.param
+                const deviceValue = valuesResponse.find(
+                  (item: TblValuesItem) =>
+                    item.param === device.param ||
+                    item.name === device.param ||
+                    item.id === device.param,
                 );
-                
+
                 if (deviceValue) {
-                  const valueStr = String(deviceValue.value || deviceValue.data || deviceValue.val || '0');
-                  const numericValue = parseFloat(valueStr.replace(',', '.'));
-                  
+                  const valueStr = String(
+                    deviceValue.value ||
+                      deviceValue.data ||
+                      deviceValue.val ||
+                      "0",
+                  );
+                  const numericValue = parseFloat(valueStr.replace(",", "."));
+
                   if (!isNaN(numericValue)) {
                     let unit = "ед.";
                     let temperature: number | undefined = undefined;
-                    
-                    if (device.param.startsWith('t') || device.param.startsWith('tu')) {
-                      unit = '°C';
+
+                    if (
+                      device.param.startsWith("t") ||
+                      device.param.startsWith("tu")
+                    ) {
+                      unit = "°C";
                       temperature = numericValue;
-                    } else if (device.param.startsWith('p')) {
-                      unit = 'бар';
-                    } else if (device.param.startsWith('fw') || device.param.startsWith('fa')) {
-                      unit = 'м³/ч';
+                    } else if (device.param.startsWith("p")) {
+                      unit = "бар";
+                    } else if (
+                      device.param.startsWith("fw") ||
+                      device.param.startsWith("fa")
+                    ) {
+                      unit = "м³/ч";
                     }
-                    
+
                     return {
                       ...device,
                       value: `${numericValue.toFixed(2)} ${unit}`,
                       temperature: temperature,
-                      timestamp: deviceValue.timestamp || deviceValue.time || deviceValue.created_at || new Date().toISOString()
+                      timestamp:
+                        deviceValue.timestamp ||
+                        deviceValue.time ||
+                        deviceValue.created_at ||
+                        new Date().toISOString(),
                     };
                   }
                 }
               }
               return device;
             });
-            
+
             setDevices(updatedDevices);
             setFilteredDevices(updatedDevices);
             setEquipmentTotalCount(updatedDevices.length);
-            
+
             if (updatedDevices.length > 0 && !selectedNode) {
-              const firstDevice = updatedDevices.find(d => d.param && (d.param.startsWith("t") || d.param.startsWith("tu")));
+              const firstDevice = updatedDevices.find(
+                (d) =>
+                  d.param &&
+                  (d.param.startsWith("t") || d.param.startsWith("tu")),
+              );
               if (firstDevice) {
                 setSelectedNode(firstDevice.id);
               } else {
@@ -341,13 +435,13 @@ export const HVACSystemPage: React.FC = () => {
               }
             }
           } else {
-            console.warn('⚠️ tblValues вернул не массив');
+            console.warn("⚠️ tblValues вернул не массив");
             setDevices(hvacDevices);
             setFilteredDevices(hvacDevices);
             setEquipmentTotalCount(hvacDevices.length);
           }
         } catch (error) {
-          console.warn('⚠️ Ошибка загрузки значений:', error);
+          console.warn("⚠️ Ошибка загрузки значений:", error);
           setDevices(hvacDevices);
           setFilteredDevices(hvacDevices);
           setEquipmentTotalCount(hvacDevices.length);
@@ -360,7 +454,7 @@ export const HVACSystemPage: React.FC = () => {
       setSnackbar({
         open: true,
         message: `Ошибка загрузки устройств HVAC: ${err.message}`,
-        severity: 'error'
+        severity: "error",
       });
     } finally {
       setLoading(false);
@@ -368,98 +462,120 @@ export const HVACSystemPage: React.FC = () => {
   }, [selectedNode, filterHVACDevices]);
 
   // ========== ОБНОВЛЕНИЕ ДАННЫХ ГРАФИКА ==========
-  const fetchHistoricalDataForDevice = useCallback(async (deviceId: string, paramPrefix: string, specificParam?: string) => {
-    console.log(`🔄 Загрузка исторических данных для устройства ${deviceId}, префикс: ${paramPrefix}`);
-    
-    try {
-      setRefreshing(true);
-      
-      const historicalResponse = await fetchFromGetDevicesHTF(paramPrefix);
-      
-      if (historicalResponse.length === 0) {
-        console.error('❌ Нет исторических данных для отображения');
-        setSnackbar({
-          open: true,
-          message: `Нет данных для префикса ${paramPrefix}`,
-          severity: 'warning'
-        });
-        return;
-      }
-      
-      const historicalData: TemperatureDataPoint[] = [];
-      
-      // Обработка данных - ОГРАНИЧИВАЕМ количество точек в development
-      const maxPoints = process.env.NODE_ENV === 'development' ? 20 : 50;
-      
-      for (let i = 0; i < Math.min(historicalResponse.length, maxPoints); i++) {
-        const item = historicalResponse[i];
-        if (item?.vValue?.[0] && specificParam && item.vValue[0][specificParam] !== undefined) {
-          const valueStr = String(item.vValue[0][specificParam]).replace(',', '.');
-          const value = parseFloat(valueStr);
-          
-          if (!isNaN(value)) {
-            historicalData.push({
-              timestamp: item.vUpdateTime || new Date().toISOString(),
-              temperature: value,
-              node: specificParam
-            });
+  const fetchHistoricalDataForDevice = useCallback(
+    async (deviceId: string, paramPrefix: string, specificParam?: string) => {
+      console.log(
+        `🔄 Загрузка исторических данных для устройства ${deviceId}, префикс: ${paramPrefix}`,
+      );
+
+      try {
+        setRefreshing(true);
+
+        const historicalResponse = await fetchFromGetDevicesHTF(paramPrefix);
+
+        if (historicalResponse.length === 0) {
+          console.error("❌ Нет исторических данных для отображения");
+          setSnackbar({
+            open: true,
+            message: `Нет данных для префикса ${paramPrefix}`,
+            severity: "warning",
+          });
+          return;
+        }
+
+        const historicalData: TemperatureDataPoint[] = [];
+
+        // Обработка данных - ОГРАНИЧИВАЕМ количество точек в development
+        const maxPoints = process.env.NODE_ENV === "development" ? 20 : 50;
+
+        for (
+          let i = 0;
+          i < Math.min(historicalResponse.length, maxPoints);
+          i++
+        ) {
+          const item = historicalResponse[i];
+          if (
+            item?.vValue?.[0] &&
+            specificParam &&
+            item.vValue[0][specificParam] !== undefined
+          ) {
+            const valueStr = String(item.vValue[0][specificParam]).replace(
+              ",",
+              ".",
+            );
+            const value = parseFloat(valueStr);
+
+            if (!isNaN(value)) {
+              historicalData.push({
+                timestamp: item.vUpdateTime || new Date().toISOString(),
+                temperature: value,
+                node: specificParam,
+              });
+            }
           }
         }
+
+        if (historicalData.length === 0) {
+          console.warn("⚠️ Нет данных для отображения после фильтрации");
+          return;
+        }
+
+        historicalData.sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        );
+
+        setTemperatureData(historicalData);
+        console.log(`✅ График обновлен: ${historicalData.length} точек`);
+
+        if (historicalData.length > 0) {
+          const latestValue =
+            historicalData[historicalData.length - 1].temperature;
+
+          setDevices((prev) =>
+            prev.map((d) =>
+              d.id === deviceId
+                ? {
+                    ...d,
+                    temperature: latestValue,
+                    value: `${latestValue.toFixed(1)}°C`,
+                    timestamp:
+                      historicalData[historicalData.length - 1].timestamp,
+                  }
+                : d,
+            ),
+          );
+        }
+
+        setLastUpdate(new Date().toLocaleTimeString("ru-RU"));
+      } catch (error: any) {
+        console.error("❌ Ошибка обновления графика:", error.message);
+        setSnackbar({
+          open: true,
+          message: `Ошибка загрузки графика: ${error.message}`,
+          severity: "error",
+        });
+      } finally {
+        setRefreshing(false);
       }
-      
-      if (historicalData.length === 0) {
-        console.warn('⚠️ Нет данных для отображения после фильтрации');
-        return;
-      }
-      
-      historicalData.sort((a, b) => 
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-      
-      setTemperatureData(historicalData);
-      console.log(`✅ График обновлен: ${historicalData.length} точек`);
-      
-      if (historicalData.length > 0) {
-        const latestValue = historicalData[historicalData.length - 1].temperature;
-        
-        setDevices(prev => prev.map(d => 
-          d.id === deviceId ? { 
-            ...d, 
-            temperature: latestValue,
-            value: `${latestValue.toFixed(1)}°C`,
-            timestamp: historicalData[historicalData.length - 1].timestamp
-          } : d
-        ));
-      }
-      
-      setLastUpdate(new Date().toLocaleTimeString("ru-RU"));
-      
-    } catch (error: any) {
-      console.error('❌ Ошибка обновления графика:', error.message);
-      setSnackbar({
-        open: true,
-        message: `Ошибка загрузки графика: ${error.message}`,
-        severity: 'error',
-      });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [fetchFromGetDevicesHTF]);
+    },
+    [fetchFromGetDevicesHTF],
+  );
 
   // ========== WEB SOCKET ==========
   useEffect(() => {
-    if (!TARGET_WS) {
+    if (!WS_URL) {
       console.warn("WebSocket URL не настроен");
       return;
     }
 
-    const ws = new WebSocket(TARGET_WS);
-    console.log("🔗 Подключение к WebSocket для HVAC:", TARGET_WS);
+    const ws = new WebSocket(WS_URL);
+    console.log("🔗 Подключение к WebSocket для HVAC:", WS_URL);
 
     ws.onopen = () => {
       console.log("✅ WebSocket подключен для HVAC");
       setWsConnected(true);
-      
+
       setSnackbar({
         open: true,
         message: "Реальное время подключено",
@@ -503,39 +619,52 @@ export const HVACSystemPage: React.FC = () => {
   // ========== АВТООБНОВЛЕНИЕ ГРАФИКА ==========
   useEffect(() => {
     if (!pollingActive || !selectedNode) return;
-    
+
     const intervalId = setInterval(() => {
-      console.log('🔄 Автообновление данных HVAC');
-      const selectedDevice = devices.find(d => d.id === selectedNode);
+      console.log("🔄 Автообновление данных HVAC");
+      const selectedDevice = devices.find((d) => d.id === selectedNode);
       if (selectedDevice?.param) {
-        const prefix = selectedDevice.param.replace(/\d+$/, '');
-        fetchHistoricalDataForDevice(selectedNode, prefix, selectedDevice.param);
+        const prefix = selectedDevice.param.replace(/\d+$/, "");
+        fetchHistoricalDataForDevice(
+          selectedNode,
+          prefix,
+          selectedDevice.param,
+        );
       }
     }, 10000);
-    
+
     return () => clearInterval(intervalId);
   }, [pollingActive, selectedNode, devices, fetchHistoricalDataForDevice]);
 
   // ========== ОБРАБОТЧИКИ ==========
   const handleManualRefresh = useCallback(() => {
     fetchHVACDevices();
-    const selectedDevice = devices.find(d => d.id === selectedNode);
+    const selectedDevice = devices.find((d) => d.id === selectedNode);
     if (selectedDevice?.param) {
-      const prefix = selectedDevice.param.replace(/\d+$/, '');
+      const prefix = selectedDevice.param.replace(/\d+$/, "");
       fetchHistoricalDataForDevice(selectedNode, prefix, selectedDevice.param);
     }
     fetchMaintenanceTasks();
-  }, [fetchHVACDevices, selectedNode, devices, fetchHistoricalDataForDevice, fetchMaintenanceTasks]);
+  }, [
+    fetchHVACDevices,
+    selectedNode,
+    devices,
+    fetchHistoricalDataForDevice,
+    fetchMaintenanceTasks,
+  ]);
 
-  const handleNodeClick = useCallback(async (nodeId: string) => {
-    setSelectedNode(nodeId);
-    
-    const device = devices.find(d => d.id === nodeId);
-    if (device?.param) {
-      const prefix = device.param.replace(/\d+$/, '');
-      await fetchHistoricalDataForDevice(nodeId, prefix, device.param);
-    }
-  }, [devices, fetchHistoricalDataForDevice]);
+  const handleNodeClick = useCallback(
+    async (nodeId: string) => {
+      setSelectedNode(nodeId);
+
+      const device = devices.find((d) => d.id === nodeId);
+      if (device?.param) {
+        const prefix = device.param.replace(/\d+$/, "");
+        await fetchHistoricalDataForDevice(nodeId, prefix, device.param);
+      }
+    },
+    [devices, fetchHistoricalDataForDevice],
+  );
 
   const handleAlarmClick = useCallback(async () => {
     const device = devices.find((d) => d.id === selectedNode);
@@ -549,12 +678,12 @@ export const HVACSystemPage: React.FC = () => {
     }
 
     try {
-      const currentUser = localStorage.getItem('userName') || 'admin';
-      
+      const currentUser = localStorage.getItem("userName") || "admin";
+
       await setAlarm({
         parameter: device.param || device.id,
-        value: device.value || 'Н/Д',
-        user: currentUser
+        value: device.value || "Н/Д",
+        user: currentUser,
       });
 
       setSnackbar({
@@ -563,10 +692,10 @@ export const HVACSystemPage: React.FC = () => {
         severity: "success",
       });
     } catch (err: any) {
-      console.error('❌ Ошибка при отправке сигнала тревоги:', err);
+      console.error("❌ Ошибка при отправке сигнала тревоги:", err);
       setSnackbar({
         open: true,
-        message: `Ошибка отправки сигнала тревоги: ${err.message || 'Неизвестная ошибка'}`,
+        message: `Ошибка отправки сигнала тревоги: ${err.message || "Неизвестная ошибка"}`,
         severity: "error",
       });
     }
@@ -583,13 +712,13 @@ export const HVACSystemPage: React.FC = () => {
   const handleEquipmentTypeChange = (event: SelectChangeEvent) => {
     const type = event.target.value;
     setSelectedEquipmentType(type);
-    
+
     if (type === "all") {
       setFilteredDevices(devices);
       setEquipmentTotalCount(devices.length);
     } else {
-      const filtered = devices.filter(device => 
-        device.type.toLowerCase() === type.toLowerCase()
+      const filtered = devices.filter(
+        (device) => device.type.toLowerCase() === type.toLowerCase(),
       );
       setFilteredDevices(filtered);
       setEquipmentTotalCount(filtered.length);
@@ -603,18 +732,18 @@ export const HVACSystemPage: React.FC = () => {
   };
 
   const handleRefreshChart = () => {
-    const device = devices.find(d => d.id === selectedNode);
+    const device = devices.find((d) => d.id === selectedNode);
     if (device?.param) {
-      const prefix = device.param.replace(/\d+$/, '');
+      const prefix = device.param.replace(/\d+$/, "");
       fetchHistoricalDataForDevice(selectedNode, prefix, device.param);
     }
   };
 
   const handleDebugChart = () => {
-    console.log('🔍 Отладка данных графика:', {
+    console.log("🔍 Отладка данных графика:", {
       points: temperatureData.length,
       devices: devices.length,
-      selectedNode
+      selectedNode,
     });
   };
 
@@ -675,10 +804,14 @@ export const HVACSystemPage: React.FC = () => {
   // Обновление данных при изменении selectedNode
   useEffect(() => {
     if (selectedNode) {
-      const selectedDevice = devices.find(d => d.id === selectedNode);
+      const selectedDevice = devices.find((d) => d.id === selectedNode);
       if (selectedDevice?.param) {
-        const prefix = selectedDevice.param.replace(/\d+$/, '');
-        fetchHistoricalDataForDevice(selectedNode, prefix, selectedDevice.param);
+        const prefix = selectedDevice.param.replace(/\d+$/, "");
+        fetchHistoricalDataForDevice(
+          selectedNode,
+          prefix,
+          selectedDevice.param,
+        );
       }
     }
   }, [selectedNode]);
@@ -711,14 +844,12 @@ export const HVACSystemPage: React.FC = () => {
       snackbar={snackbar}
       alarmLoading={alarmLoading}
       equipmentPageDevices={equipmentPageDevices}
-
       // Пагинация
       schemeTotalCount={schemeTotalCount}
       paginatedDevices={paginatedDevices}
       paginatedTasks={paginatedTasks}
       tasksTotalCount={tasksTotalCount}
       selectedDevice={selectedDevice}
-
       // Обработчики
       onManualRefresh={handleManualRefresh}
       onNodeClick={handleNodeClick}
@@ -734,7 +865,6 @@ export const HVACSystemPage: React.FC = () => {
       onTasksRowsPerPageChange={handleTasksRowsPerPageChange}
       onRefreshChart={handleRefreshChart}
       onDebugChart={handleDebugChart}
-
       // Вспомогательные функции
       getStatusColor={getStatusColor}
       getStatusIcon={getStatusIcon}

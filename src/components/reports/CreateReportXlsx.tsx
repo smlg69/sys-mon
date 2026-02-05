@@ -88,7 +88,7 @@ export const generateXlsxReport = async ({
 
     // Существующая логика для XLSX
     const response = await fetch(
-      `/rest/v1/contexts/users.admin.models.workerMS/functions/${endpoint}`,
+      `${endpoint}`,
       {
         method: 'POST',
         headers: {

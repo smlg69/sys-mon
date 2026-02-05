@@ -136,8 +136,8 @@ const GanttRow: React.FC<{
                   task.system === "ЖКХ"
                     ? "primary"
                     : task.system === "СКУД"
-                    ? "secondary"
-                    : "default"
+                      ? "secondary"
+                      : "default"
                 }
               />
               <Typography variant="caption" color="text.secondary">
@@ -196,10 +196,10 @@ const GanttRow: React.FC<{
                         isStart && isEnd
                           ? "4px"
                           : isStart
-                          ? "4px 0 0 4px"
-                          : isEnd
-                          ? "0 4px 4px 0"
-                          : 0,
+                            ? "4px 0 0 4px"
+                            : isEnd
+                              ? "0 4px 4px 0"
+                              : 0,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -252,7 +252,7 @@ export const DashboardPage: React.FC = () => {
 
   // Состояние для режима просмотра диаграммы Ганта
   const [viewMode, setViewMode] = useState<"week" | "month" | "quarter">(
-    "month"
+    "month",
   );
 
   useEffect(() => {
@@ -263,14 +263,14 @@ export const DashboardPage: React.FC = () => {
     try {
       const token = localStorage.getItem("access_token");
       const response = await fetch(
-        "/rest/v1/contexts/users.admin.models.workerMS/variables/tblTasks",
+        "/rest/v1/contexts/users.devMS.models.workerMS/variables/tblTasks",
         {
           method: "GET",
           headers: {
             Accept: "application/json",
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -290,21 +290,25 @@ export const DashboardPage: React.FC = () => {
 
   // Фильтрация задач по системам
   const getTasksBySystem = (systemType: string) => {
-  return tblTasks.filter((task) => {
-    if (!task.type) return false;
-    
-    const taskSystem = normalizeSystemName(getSystemName(task.type));
+    return tblTasks.filter((task) => {
+      if (!task.type) return false;
 
-    if (systemType === "hvac") {
-      return taskSystem === "ЖКХ" || taskSystem === "hvac";
-    } else if (systemType === "access") {
-      return taskSystem === "СКУД" || taskSystem === "access";
-    } else if (systemType === "cctv") {
-      return taskSystem === "Видеонаблюдение" || taskSystem === "video" || taskSystem === "cctv";
-    }
-    return false;
-  });
-};
+      const taskSystem = normalizeSystemName(getSystemName(task.type));
+
+      if (systemType === "hvac") {
+        return taskSystem === "ЖКХ" || taskSystem === "hvac";
+      } else if (systemType === "access") {
+        return taskSystem === "СКУД" || taskSystem === "access";
+      } else if (systemType === "cctv") {
+        return (
+          taskSystem === "Видеонаблюдение" ||
+          taskSystem === "video" ||
+          taskSystem === "cctv"
+        );
+      }
+      return false;
+    });
+  };
 
   // Вспомогательные функции (вынесены до использования)
   const calculateSystemHealth = (systemId: string): number => {
@@ -312,7 +316,7 @@ export const DashboardPage: React.FC = () => {
     if (systemTasks.length === 0) return 95;
 
     const completedTasks = systemTasks.filter(
-      (t: any) => t.action === "Выполнено"
+      (t: any) => t.action === "Выполнено",
     ).length;
     const totalTasks = systemTasks.length;
 
@@ -332,7 +336,7 @@ export const DashboardPage: React.FC = () => {
     if (systemTasks.length === 0) return "96%";
 
     const completedTasks = systemTasks.filter(
-      (t: any) => t.action === "Выполнено"
+      (t: any) => t.action === "Выполнено",
     ).length;
     const totalTasks = systemTasks.length;
 
@@ -348,7 +352,7 @@ export const DashboardPage: React.FC = () => {
     if (tblTasks.length === 0) return "96%";
 
     const completedTasks = tblTasks.filter(
-      (t: any) => t.action === "Выполнено"
+      (t: any) => t.action === "Выполнено",
     ).length;
     const totalTasks = tblTasks.length;
 
@@ -356,58 +360,71 @@ export const DashboardPage: React.FC = () => {
   };
 
   const getSystemName = (type: string): string => {
-  if (!type) return "Общее";
+    if (!type) return "Общее";
 
-  // Приводим к нижнему регистру для сравнения
-  const typeLower = type.toLowerCase();
-  
-  if (
-    typeLower.includes("насос") || typeLower.includes("температур") || typeLower.includes("вентиляц") ||
-    typeLower.includes("отопление") || typeLower.includes("кондиц") || typeLower.includes("теплов") ||
-    typeLower.includes("клапан") || typeLower.includes("hvac")
-  ) {
-    return "hvac";
-  } else if (
-    typeLower.includes("скуд") || typeLower.includes("считыватель") || typeLower.includes("контроллер") ||
-    typeLower.includes("замок") || typeLower.includes("access")
-  ) {
-    return "access";
-  } else if (
-    typeLower.includes("сервер") || typeLower.includes("видео") || typeLower.includes("камера") ||
-    typeLower.includes("регистратор") || typeLower.includes("video")
-  ) {
-    return "video";
-  } else if (
-    typeLower.includes("GSM") || typeLower.includes("сигнализац") || typeLower.includes("дыма")
-  ) {
-    return "fire";
-  }
+    // Приводим к нижнему регистру для сравнения
+    const typeLower = type.toLowerCase();
 
-  // Если система не определена, возвращаем "Общее"
-  return "fire";  //"Общее"
-};
+    if (
+      typeLower.includes("насос") ||
+      typeLower.includes("температур") ||
+      typeLower.includes("вентиляц") ||
+      typeLower.includes("отопление") ||
+      typeLower.includes("кондиц") ||
+      typeLower.includes("теплов") ||
+      typeLower.includes("клапан") ||
+      typeLower.includes("hvac")
+    ) {
+      return "hvac";
+    } else if (
+      typeLower.includes("скуд") ||
+      typeLower.includes("считыватель") ||
+      typeLower.includes("контроллер") ||
+      typeLower.includes("замок") ||
+      typeLower.includes("access")
+    ) {
+      return "access";
+    } else if (
+      typeLower.includes("сервер") ||
+      typeLower.includes("видео") ||
+      typeLower.includes("камера") ||
+      typeLower.includes("регистратор") ||
+      typeLower.includes("video")
+    ) {
+      return "video";
+    } else if (
+      typeLower.includes("GSM") ||
+      typeLower.includes("сигнализац") ||
+      typeLower.includes("дыма")
+    ) {
+      return "fire";
+    }
 
-// Добавьте функцию для нормализации системных имен к стандартным значениям
-const normalizeSystemName = (system: string): string => {
-  const systemLower = system.toLowerCase();
-  
-  if (systemLower === "hvac" || systemLower === "жкх") {
-    return "ЖКХ";
-  } else if (systemLower === "скуд" || systemLower === "access") {
-    return "СКУД";
-  } else if (systemLower === "video" || systemLower === "cctv") {
-    return "Видеонаблюдение";
-  } else if (systemLower === "пб" || systemLower === "fire") {
-    return "Пожарная";
-  }
-  // Возвращаем оригинальное значение, если оно соответствует одному из допустимых
-  //if (["hvac", "СКУД", "Видеонаблюдение", "ЖКХ", "access", "video"].includes(system)) {
+    // Если система не определена, возвращаем "Общее"
+    return "fire"; //"Общее"
+  };
+
+  // Добавьте функцию для нормализации системных имен к стандартным значениям
+  const normalizeSystemName = (system: string): string => {
+    const systemLower = system.toLowerCase();
+
+    if (systemLower === "hvac" || systemLower === "жкх") {
+      return "ЖКХ";
+    } else if (systemLower === "скуд" || systemLower === "access") {
+      return "СКУД";
+    } else if (systemLower === "video" || systemLower === "cctv") {
+      return "Видеонаблюдение";
+    } else if (systemLower === "пб" || systemLower === "fire") {
+      return "Пожарная";
+    }
+    // Возвращаем оригинальное значение, если оно соответствует одному из допустимых
+    //if (["hvac", "СКУД", "Видеонаблюдение", "ЖКХ", "access", "video"].includes(system)) {
     return system;
-  //}
-  
-  // По умолчанию возвращаем "Общее"
-  //return "Общее";
-};
+    //}
+
+    // По умолчанию возвращаем "Общее"
+    //return "Общее";
+  };
 
   const formatDate = (dateString: string): string => {
     if (!dateString) return "Не указано";
@@ -451,21 +468,21 @@ const normalizeSystemName = (system: string): string => {
   };
 
   const getSystemColor = (system: string): string => {
-  const normalizedSystem = normalizeSystemName(system);
-  
-  switch (normalizedSystem) {
-    case "ЖКХ":
-      return "#2196f3";
-    case "СКУД":
-      return "#9c27b0";
-    case "Видеонаблюдение":
-      return "#ff9800";
-    case "Пожарная":
-      return "#f44336"; // Красный для пожарной системы
-    default:
-      return "#757575";
-  }
-};
+    const normalizedSystem = normalizeSystemName(system);
+
+    switch (normalizedSystem) {
+      case "ЖКХ":
+        return "#2196f3";
+      case "СКУД":
+        return "#9c27b0";
+      case "Видеонаблюдение":
+        return "#ff9800";
+      case "Пожарная":
+        return "#f44336"; // Красный для пожарной системы
+      default:
+        return "#757575";
+    }
+  };
 
   // Функции для управления режимами просмотра диаграммы Ганта
   const handleViewModeChange = (mode: "week" | "month" | "quarter") => {
@@ -481,7 +498,7 @@ const normalizeSystemName = (system: string): string => {
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
         return `Диаграмма Ганта на неделю ${startOfWeek.toLocaleDateString(
-          "ru-RU"
+          "ru-RU",
         )} - ${endOfWeek.toLocaleDateString("ru-RU")}`;
       case "month":
         const monthName = now.toLocaleDateString("ru-RU", { month: "long" });
@@ -578,7 +595,7 @@ const normalizeSystemName = (system: string): string => {
       value: `${calculateSystemHealth("hvac")}%`,
       color: "success" as const,
       activeRequests: getTasksBySystem("hvac").filter(
-        (t: any) => t.action === "В работе"
+        (t: any) => t.action === "В работе",
       ).length,
       avgResponse: calculateAvgResponseTime("hvac"),
       completedOnTime: calculateCompletedOnTime("hvac"),
@@ -591,7 +608,7 @@ const normalizeSystemName = (system: string): string => {
       value: `${calculateSystemHealth("access")}%`,
       color: "success" as const,
       activeRequests: getTasksBySystem("access").filter(
-        (t: any) => t.action === "В работе"
+        (t: any) => t.action === "В работе",
       ).length,
       avgResponse: calculateAvgResponseTime("access"),
       completedOnTime: calculateCompletedOnTime("access"),
@@ -604,7 +621,7 @@ const normalizeSystemName = (system: string): string => {
       value: `${calculateSystemHealth("cctv")}%`,
       color: "warning" as const,
       activeRequests: getTasksBySystem("cctv").filter(
-        (t: any) => t.action === "В работе"
+        (t: any) => t.action === "В работе",
       ).length,
       avgResponse: calculateAvgResponseTime("cctv"),
       completedOnTime: calculateCompletedOnTime("cctv"),
@@ -627,14 +644,14 @@ const normalizeSystemName = (system: string): string => {
 
   // Оборудование к обслуживанию (с пагинацией)
   const maintenanceEquipment = tblTasks
-  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-  .map((task: any) => ({
-    equipment: task.device || task.type || "Не указано",
-    system: normalizeSystemName(getSystemName(task.type)), // Нормализуем систему
-    lastService: formatDate(task.taskDate),
-    status: getStatusLabel(task.action),
-    id: task.id || Math.random().toString(),
-  }));
+    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+    .map((task: any) => ({
+      equipment: task.device || task.type || "Не указано",
+      system: normalizeSystemName(getSystemName(task.type)), // Нормализуем систему
+      lastService: formatDate(task.taskDate),
+      status: getStatusLabel(task.action),
+      id: task.id || Math.random().toString(),
+    }));
 
   // KPI статистика на основе всех задач
   const kpiStats = {
@@ -893,90 +910,90 @@ const normalizeSystemName = (system: string): string => {
 
             {/* Оборудование к обслуживанию с пагинацией */}
             <Paper sx={{ p: 3, mb: 3, mx: 2 }}>
-  <Box
-    sx={{
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      mb: 2,
-    }}
-  >
-    <Box sx={{ display: "flex", alignItems: "center" }}>
-      <Build sx={{ mr: 1, color: "primary.main" }} />
-      <Typography variant="h6">
-        Оборудование к обслуживанию
-      </Typography>
-    </Box>
-  </Box>
-  
-  <TableContainer>
-    <Table size="small">
-      <TableHead>
-        <TableRow>
-          <TableCell>Оборудование</TableCell>
-          <TableCell>Система</TableCell>
-          <TableCell>Дата последнего обслуживания</TableCell>
-          <TableCell>Статус</TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {maintenanceEquipment.map((item) => {
-          // Нормализуем название системы перед отображением
-          const normalizedSystem = normalizeSystemName(item.system);
-          
-          return (
-            <TableRow key={item.id}>
-              <TableCell>{item.equipment}</TableCell>
-              <TableCell>
-                <Chip
-                  label={normalizedSystem}
-                  size="small"
-                  variant="outlined"
-                  color={
-                    normalizedSystem === "ЖКХ"
-                      ? "primary"
-                      : normalizedSystem === "СКУД"
-                      ? "secondary"
-                      : normalizedSystem === "Видеонаблюдение"
-                      ? "warning"
-                      : normalizedSystem === "Пожарная"
-                      ? "error"
-                      : "default"
-                  }
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 2,
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <Build sx={{ mr: 1, color: "primary.main" }} />
+                  <Typography variant="h6">
+                    Оборудование к обслуживанию
+                  </Typography>
+                </Box>
+              </Box>
+
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Оборудование</TableCell>
+                      <TableCell>Система</TableCell>
+                      <TableCell>Дата последнего обслуживания</TableCell>
+                      <TableCell>Статус</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {maintenanceEquipment.map((item) => {
+                      // Нормализуем название системы перед отображением
+                      const normalizedSystem = normalizeSystemName(item.system);
+
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>{item.equipment}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={normalizedSystem}
+                              size="small"
+                              variant="outlined"
+                              color={
+                                normalizedSystem === "ЖКХ"
+                                  ? "primary"
+                                  : normalizedSystem === "СКУД"
+                                    ? "secondary"
+                                    : normalizedSystem === "Видеонаблюдение"
+                                      ? "warning"
+                                      : normalizedSystem === "Пожарная"
+                                        ? "error"
+                                        : "default"
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>{item.lastService}</TableCell>
+                          <TableCell>
+                            <Chip
+                              icon={getStatusIcon(item.status)}
+                              label={item.status}
+                              color={getStatusColor(item.status) as any}
+                              size="small"
+                              variant="outlined"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {/* Используем ReportPagination вместо TablePagination */}
+              {tblTasks.length > 0 && (
+                <ReportPagination
+                  page={page + 1} // +1 потому что ReportPagination использует 1-based индексацию
+                  rowsPerPage={rowsPerPage}
+                  totalRows={tblTasks.length}
+                  onPageChange={(newPage) => setPage(newPage - 1)} // -1 потому что ReportPagination использует 1-based индексацию
+                  onRowsPerPageChange={(newRowsPerPage) => {
+                    setRowsPerPage(newRowsPerPage);
+                    setPage(0);
+                  }}
+                  disabled={loading}
                 />
-              </TableCell>
-              <TableCell>{item.lastService}</TableCell>
-              <TableCell>
-                <Chip
-                  icon={getStatusIcon(item.status)}
-                  label={item.status}
-                  color={getStatusColor(item.status) as any}
-                  size="small"
-                  variant="outlined"
-                />
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
-  </TableContainer>
-  
-  {/* Используем ReportPagination вместо TablePagination */}
-  {tblTasks.length > 0 && (
-    <ReportPagination
-      page={page + 1} // +1 потому что ReportPagination использует 1-based индексацию
-      rowsPerPage={rowsPerPage}
-      totalRows={tblTasks.length}
-      onPageChange={(newPage) => setPage(newPage - 1)} // -1 потому что ReportPagination использует 1-based индексацию
-      onRowsPerPageChange={(newRowsPerPage) => {
-        setRowsPerPage(newRowsPerPage);
-        setPage(0);
-      }}
-      disabled={loading}
-    />
-  )}
-</Paper>
+              )}
+            </Paper>
 
             {/* Диаграмма Ганта - Регламент обслуживания */}
             <Paper sx={{ p: 3, mx: 2, mb: 3 }}>
@@ -1105,8 +1122,8 @@ const normalizeSystemName = (system: string): string => {
                             viewMode === "week"
                               ? 40
                               : viewMode === "month"
-                              ? 30
-                              : 100,
+                                ? 30
+                                : 100,
                           borderRight: "1px solid #f0f0f0",
                           p: 1,
                           textAlign: "center",

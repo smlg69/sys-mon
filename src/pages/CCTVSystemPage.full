@@ -142,7 +142,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 // Константы
-const TARGET_WS = process.env.REACT_APP_TARGET_WS;
+const WS_URL = process.env.REACT_APP_WS_URL;
 const VARIABLES = process.env.REACT_APP_VARIABLES;
 const FUNCTIONS = process.env.REACT_APP_FUNCTIONS;
 
@@ -806,13 +806,13 @@ export const CCTVSystemPage: React.FC = () => {
 
   // ========== WEB SOCKET ==========
   useEffect(() => {
-    if (!TARGET_WS) {
+    if (!WS_URL) {
       console.warn("WebSocket URL не настроен");
       return;
     }
 
-    const ws = new WebSocket(TARGET_WS);
-    console.log("🔗 Подключение к WebSocket для CCTV:", TARGET_WS);
+    const ws = new WebSocket(WS_URL);
+    console.log("🔗 Подключение к WebSocket для CCTV:", WS_URL);
 
     ws.onopen = () => {
       console.log("✅ WebSocket подключен для CCTV");

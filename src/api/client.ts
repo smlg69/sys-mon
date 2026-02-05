@@ -2,7 +2,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 
 const VARIABLES = process.env.REACT_APP_VARIABLES;
-const FUNCTIONS = process.env.REACT_APP_FUNCTIONS;
+//const FUNCTIONS = process.env.REACT_APP_FUNCTIONS;
 
 class ApiClient {
   private client: AxiosInstance;

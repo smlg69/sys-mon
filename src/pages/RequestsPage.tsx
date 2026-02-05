@@ -48,12 +48,12 @@ import {
 import { requestsApi, Order } from "../api/requests";
 import { useFormattedId } from "../hooks/useFormattedId";
 import { AssignOrderModal } from "../components/requests/AssignOrderModal";
-import { apiClient } from "../api/client"; 
+import { apiClient } from "../api/client";
 // Импортируем внешний компонент пагинации
 import { ReportPagination } from "../components/reports/Pagination";
 
 // Константы для WebSocket
-const TARGET_WS = process.env.REACT_APP_TARGET_WS || "ws://localhost:9443";
+const WS_URL = process.env.REACT_APP_WS_URL || "ws://localhost:9443";
 //const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:3001";
 
 // Интерфейс для данных формы новой заявки
@@ -147,7 +147,7 @@ const RequestsPage: React.FC = () => {
             startDate: item.startDate || item.startedAt || null,
             endDate: item.endDate || item.completedAt || null,
             originalData: item, // Сохраняем оригинальные данные
-          })
+          }),
         );
 
         setOrders(ordersData);
@@ -257,14 +257,14 @@ const RequestsPage: React.FC = () => {
     let socket: WebSocket | null = null;
 
     const connectWebSocket = () => {
-      if (!TARGET_WS) {
+      if (!WS_URL) {
         console.warn("WebSocket URL не настроен");
         return;
       }
 
       try {
-        console.log("🔗 Подключение к WebSocket:", TARGET_WS);
-        socket = new WebSocket(TARGET_WS);
+        console.log("🔗 Подключение к WebSocket:", WS_URL);
+        socket = new WebSocket(WS_URL);
 
         socket.onopen = () => {
           console.log("✅ WebSocket подключен");
@@ -330,7 +330,7 @@ const RequestsPage: React.FC = () => {
 
         socket.onclose = (event: CloseEvent) => {
           console.log(
-            `🔌 WebSocket отключен. Код: ${event.code}, Причина: ${event.reason}`
+            `🔌 WebSocket отключен. Код: ${event.code}, Причина: ${event.reason}`,
           );
           setWsConnected(false);
 
@@ -373,7 +373,7 @@ const RequestsPage: React.FC = () => {
           console.log(
             "✅ Заявки обновлены через WebSocket:",
             updatedOrders.length,
-            "шт"
+            "шт",
           );
 
           setSnackbar({
@@ -406,7 +406,7 @@ const RequestsPage: React.FC = () => {
             console.log(
               "✅ Заявки обновлены из объекта:",
               updatedOrders.length,
-              "шт"
+              "шт",
             );
           }
         }
@@ -434,48 +434,62 @@ const RequestsPage: React.FC = () => {
 
   // Функции для определения цвета
   const getStatusColor = (status: string) => {
-    const cleanStatus = status || '';
+    const cleanStatus = status || "";
     switch (cleanStatus) {
-      case 'Создана': return 'default';
-      case 'В работе': return 'primary';
-      case 'Закрыта': return 'success';
-      default: return 'default';
+      case "Создана":
+        return "default";
+      case "В работе":
+        return "primary";
+      case "Закрыта":
+        return "success";
+      default:
+        return "default";
     }
   };
 
   const getTypeColor = (type: string) => {
-    const cleanType = type || '';
+    const cleanType = type || "";
     switch (cleanType?.toLowerCase()) {
-      case 'обслуживание': return 'info';
-      case 'замена': return 'warning';
-      case 'ремонт': return 'error';
-      case 'настройка': return 'secondary';
-      default: return 'default';
+      case "обслуживание":
+        return "info";
+      case "замена":
+        return "warning";
+      case "ремонт":
+        return "error";
+      case "настройка":
+        return "secondary";
+      default:
+        return "default";
     }
   };
 
   const getPriorityColor = (priority: string) => {
-    if (!priority) return 'default';
-    
+    if (!priority) return "default";
+
     const priorityLower = priority.toLowerCase();
-    
-    if (priorityLower.includes('низк')) return 'success';
-    if (priorityLower.includes('сред')) return 'warning';
-    if (priorityLower.includes('высок')) return 'error';
-    if (priorityLower.includes('крит')) return 'error';
-    
-    return 'default';
+
+    if (priorityLower.includes("низк")) return "success";
+    if (priorityLower.includes("сред")) return "warning";
+    if (priorityLower.includes("высок")) return "error";
+    if (priorityLower.includes("крит")) return "error";
+
+    return "default";
   };
 
   // Получение иконки для типа заявки
   const getTypeIcon = (type: string) => {
-    const cleanType = type?.toLowerCase() || '';
+    const cleanType = type?.toLowerCase() || "";
     switch (cleanType) {
-      case 'ремонт': return <Handyman />;
-      case 'обслуживание': return <Build />;
-      case 'настройка': return <Settings />;
-      case 'замена': return <LocalHospital />;
-      default: return <Build />;
+      case "ремонт":
+        return <Handyman />;
+      case "обслуживание":
+        return <Build />;
+      case "настройка":
+        return <Settings />;
+      case "замена":
+        return <LocalHospital />;
+      default:
+        return <Build />;
     }
   };
 
@@ -492,13 +506,18 @@ const RequestsPage: React.FC = () => {
 
   const handleAssignOrder = async (
     orderId: string | number,
-    userName: string
+    userName: string,
   ) => {
     try {
-      console.log("🔄 Назначение заявки:", orderId, "на исполнителя:", userName);
+      console.log(
+        "🔄 Назначение заявки:",
+        orderId,
+        "на исполнителя:",
+        userName,
+      );
 
-    // Используем requestsApi.assignOrder
-    await requestsApi.assignOrder(orderId, "", userName);
+      // Используем requestsApi.assignOrder
+      await requestsApi.assignOrder(orderId, "", userName);
 
       // Обновляем локальный статус заявки
       setOrders((prev) =>
@@ -510,8 +529,8 @@ const RequestsPage: React.FC = () => {
                 user: userName,
                 startDate: new Date().toISOString(),
               }
-            : order
-        )
+            : order,
+        ),
       );
 
       // Показываем уведомление
@@ -618,7 +637,7 @@ const RequestsPage: React.FC = () => {
 
   const handleStatusUpdate = async (
     orderId: string | number,
-    newStatus: string
+    newStatus: string,
   ) => {
     try {
       // Обновляем локальный статус заявки
@@ -632,8 +651,8 @@ const RequestsPage: React.FC = () => {
                   endDate: new Date().toISOString(),
                 }),
               }
-            : order
-        )
+            : order,
+        ),
       );
 
       setSnackbar({
@@ -694,7 +713,8 @@ const RequestsPage: React.FC = () => {
     if (!formData.type.trim()) errors.type = "Тип обязателен";
     if (!formData.device.trim()) errors.device = "Устройство обязательно";
     if (!formData.priority.trim()) errors.priority = "Приоритет обязателен";
-    if (!formData.description.trim()) errors.description = "Описание обязательно";
+    if (!formData.description.trim())
+      errors.description = "Описание обязательно";
     if (!formData.user.trim()) errors.user = "Ответственный обязателен";
 
     setFormErrors(errors);
@@ -702,105 +722,104 @@ const RequestsPage: React.FC = () => {
   };
 
   const handleCreateOrder = async () => {
-  if (!validateForm()) {
-    return;
-  }
+    if (!validateForm()) {
+      return;
+    }
 
-  setSubmitting(true);
-  try {
-    console.log('🆕 Создание новой заявки:', formData);
+    setSubmitting(true);
+    try {
+      console.log("🆕 Создание новой заявки:", formData);
 
-    // Подготавливаем данные для отправки
-    const orderData = {
-      type: formData.type,
-      device: formData.device,
-      priority: formData.priority,
-      description: formData.description,
-      user: formData.user || '',
-    };
-
-    console.log('📤 Отправка данных на сервер:', orderData);
-
-    // Вызываем API для создания заявки
-    const response = await requestsApi.createOrder(orderData); // ОБЪЯВЛЕНО ПЕРВЫМ
-    
-    console.log('✅ Ответ от сервера при создании:', response); // ТЕПЕРЬ МОЖНО ИСПОЛЬЗОВАТЬ
-
-    // Если сервер вернул созданную заявку
-    let createdOrder: Order;
-    if (Array.isArray(response) && response.length > 0) {
-      createdOrder = {
-        id: response[0].id || response[0].orderId || `temp-${Date.now()}`,
-        type: response[0].type || formData.type,
-        device: response[0].device || formData.device,
-        priority: response[0].priority || formData.priority,
-        description: response[0].description || formData.description,
-        status: response[0].status || 'Создана',
-        user: response[0].user || response[0].nUser || formData.user || '',
-        date: new Date().toISOString(),
-        startDate: response[0].startDate || null,
-        endDate: response[0].endDate || null,
-        originalData: response[0],
-      };
-    } else if (response && typeof response === 'object') {
-      createdOrder = {
-        id: response.id || response.orderId || `temp-${Date.now()}`,
-        type: response.type || formData.type,
-        device: response.device || formData.device,
-        priority: response.priority || formData.priority,
-        description: response.description || formData.description,
-        status: response.status || 'Создана',
-        user: response.user || response.nUser || formData.user || '',
-        date: new Date().toISOString(),
-        startDate: response.startDate || null,
-        endDate: response.endDate || null,
-        originalData: response,
-      };
-    } else {
-      // Если сервер не вернул данные, создаем временную запись
-      createdOrder = {
-        id: `temp-${Date.now()}`,
+      // Подготавливаем данные для отправки
+      const orderData = {
         type: formData.type,
         device: formData.device,
         priority: formData.priority,
         description: formData.description,
-        status: 'Создана',
-        user: formData.user || '',
-        date: new Date().toISOString(),
-        startDate: null,
-        endDate: null,
+        user: formData.user || "",
       };
+
+      console.log("📤 Отправка данных на сервер:", orderData);
+
+      // Вызываем API для создания заявки
+      const response = await requestsApi.createOrder(orderData); // ОБЪЯВЛЕНО ПЕРВЫМ
+
+      console.log("✅ Ответ от сервера при создании:", response); // ТЕПЕРЬ МОЖНО ИСПОЛЬЗОВАТЬ
+
+      // Если сервер вернул созданную заявку
+      let createdOrder: Order;
+      if (Array.isArray(response) && response.length > 0) {
+        createdOrder = {
+          id: response[0].id || response[0].orderId || `temp-${Date.now()}`,
+          type: response[0].type || formData.type,
+          device: response[0].device || formData.device,
+          priority: response[0].priority || formData.priority,
+          description: response[0].description || formData.description,
+          status: response[0].status || "Создана",
+          user: response[0].user || response[0].nUser || formData.user || "",
+          date: new Date().toISOString(),
+          startDate: response[0].startDate || null,
+          endDate: response[0].endDate || null,
+          originalData: response[0],
+        };
+      } else if (response && typeof response === "object") {
+        createdOrder = {
+          id: response.id || response.orderId || `temp-${Date.now()}`,
+          type: response.type || formData.type,
+          device: response.device || formData.device,
+          priority: response.priority || formData.priority,
+          description: response.description || formData.description,
+          status: response.status || "Создана",
+          user: response.user || response.nUser || formData.user || "",
+          date: new Date().toISOString(),
+          startDate: response.startDate || null,
+          endDate: response.endDate || null,
+          originalData: response,
+        };
+      } else {
+        // Если сервер не вернул данные, создаем временную запись
+        createdOrder = {
+          id: `temp-${Date.now()}`,
+          type: formData.type,
+          device: formData.device,
+          priority: formData.priority,
+          description: formData.description,
+          status: "Создана",
+          user: formData.user || "",
+          date: new Date().toISOString(),
+          startDate: null,
+          endDate: null,
+        };
+      }
+
+      // Добавляем заявку в локальное состояние
+      setOrders((prev) => [createdOrder, ...prev]);
+
+      setSnackbar({
+        open: true,
+        message: "Заявка успешно создана",
+        severity: "success",
+      });
+      handleCloseModal();
+    } catch (err: any) {
+      console.error("❌ Ошибка создания заявки:", err);
+
+      let errorMessage = "Ошибка создания заявки";
+      if (err.response?.data) {
+        errorMessage = `Ошибка сервера: ${JSON.stringify(err.response.data)}`;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setSnackbar({
+        open: true,
+        message: errorMessage,
+        severity: "error",
+      });
+    } finally {
+      setSubmitting(false);
     }
-
-    // Добавляем заявку в локальное состояние
-    setOrders((prev) => [createdOrder, ...prev]);
-
-    setSnackbar({
-      open: true,
-      message: "Заявка успешно создана",
-      severity: "success",
-    });
-    handleCloseModal();
-
-  } catch (err: any) {
-    console.error("❌ Ошибка создания заявки:", err);
-    
-    let errorMessage = "Ошибка создания заявки";
-    if (err.response?.data) {
-      errorMessage = `Ошибка сервера: ${JSON.stringify(err.response.data)}`;
-    } else if (err.message) {
-      errorMessage = err.message;
-    }
-    
-    setSnackbar({
-      open: true,
-      message: errorMessage,
-      severity: "error",
-    });
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
   if (loading && orders.length === 0) {
     return (
@@ -978,7 +997,7 @@ const RequestsPage: React.FC = () => {
       </Grid>
 
       {/* Таблица заявок */}
-      <Paper sx={{ overflow: 'hidden' }}>
+      <Paper sx={{ overflow: "hidden" }}>
         <TableContainer>
           <Table>
             <TableHead>
@@ -1371,7 +1390,7 @@ const RequestsPage: React.FC = () => {
                     height: 48,
                     borderRadius: 1,
                     backgroundColor: `${getTypeColor(
-                      selectedOrder.type || ""
+                      selectedOrder.type || "",
                     )}.light`,
                     color: `${getTypeColor(selectedOrder.type || "")}.main`,
                   }}

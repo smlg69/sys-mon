@@ -1,5 +1,10 @@
 // CreateReportPdfFallback.tsx
 
+// Константы
+const ORDERREPORTXLSX = process.env.REACT_APP_ORDERREPORTXLSX;
+const DEVICEREPORTXLSX = process.env.REACT_APP_DEVICEREPORTXLSX;
+const KPIREPORTXLSX = process.env.REACT_APP_KPIREPORTXLSX;
+
 // Определяем типы внутри файла
 interface ReportData {
   id: number;
@@ -217,20 +222,20 @@ const fetchReportData = async (
     let endpoint = '';
     switch (reportType) {
       case 'orders':
-        endpoint = 'reportForOrdersXlsxF';
+        endpoint = `${ORDERREPORTXLSX}`;
         break;
       case 'devices':
-        endpoint = 'reportForDevicesXlsxF';
+        endpoint = `${DEVICEREPORTXLSX}`;
         break;
       case 'kpi':
-        endpoint = 'reportForKpiXlsxF';
+        endpoint = `${KPIREPORTXLSX}`;
         break;
     }
 
     console.log(`🔄 Запрос данных отчета: ${endpoint}`, params);
 
     const response = await fetch(
-      `/rest/v1/contexts/users.admin.models.workerMS/functions/${endpoint}`,
+      `${endpoint}`,
       {
         method: 'POST',
         headers: {
@@ -308,7 +313,7 @@ const fetchReportDataJson = async (
     console.log(`🔄 Запрос JSON данных отчета: ${endpoint}`, params);
 
     const response = await fetch(
-      `/rest/v1/contexts/users.admin.models.workerMS/functions/${endpoint}`,
+      `${endpoint}`,
       {
         method: 'POST',
         headers: {

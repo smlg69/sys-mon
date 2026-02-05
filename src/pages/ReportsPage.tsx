@@ -51,6 +51,12 @@ import { generatePdfReport } from "../components/reports/CreateReportPdf";
 // Импортируем компонент пагинации
 import { ReportPagination } from "../components/reports/Pagination";
 
+// Константы
+const ORDERREPORTXLSX = process.env.REACT_APP_ORDERREPORTXLSX;
+const DEVICEREPORTXLSX = process.env.REACT_APP_DEVICEREPORTXLSX;
+const KPIREPORTXLSX = process.env.REACT_APP_KPIREPORTXLSX;
+
+
 export const ReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +195,7 @@ export const ReportsPage: React.FC = () => {
   const generateOrdersReport = async (format: 'xlsx' | 'pdf') => {
     if (format === 'xlsx') {
       await generateXlsxReport({
-        endpoint: 'reportForOrdersXlsxF',
+        endpoint: `${ORDERREPORTXLSX}`, //'reportForOrdersXlsxF',
         params: [],
         defaultFilename: 'orders_report',
         setLoading,
@@ -228,7 +234,7 @@ export const ReportsPage: React.FC = () => {
   const generateDevicesReport = async (format: 'xlsx' | 'pdf') => {
     if (format === 'xlsx') {
       await generateXlsxReport({
-        endpoint: 'reportForDevicesXlsxF',
+        endpoint: `${DEVICEREPORTXLSX}`, //'/reportForDevicesXlsxF',
         params: [],
         defaultFilename: 'devices_report',
         setLoading,
@@ -277,7 +283,7 @@ export const ReportsPage: React.FC = () => {
 
     if (format === 'xlsx') {
       await generateXlsxReport({
-        endpoint: 'reportForKPIXlsxF', // Исправлено: было 'reportForKpiXlsxF'
+        endpoint: `${KPIREPORTXLSX}`, //'reportForKPIXlsxF', // Исправлено: было 'reportForKpiXlsxF'
         params,
         defaultFilename: 'kpi_report',
         setLoading,

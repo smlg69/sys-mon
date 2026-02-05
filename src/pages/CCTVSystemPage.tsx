@@ -1,5 +1,11 @@
 // pages/CCTVSystemPage.tsx
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import { SelectChangeEvent } from "@mui/material";
 import {
   CheckCircle,
@@ -13,18 +19,18 @@ import {
   Videocam,
 } from "@mui/icons-material";
 import { apiClient } from "../api/client";
-import { useAlert } from '../hooks/useAlert';
+import { useAlert } from "../hooks/useAlert";
 import { CCTVSystemPageView } from "../components/cctv/CCTVSystemPageView";
-import { 
-  CCTVDevice, 
-  CCTVDataPoint, 
+import {
+  CCTVDevice,
+  CCTVDataPoint,
   CCTVMaintenanceTask,
   HTFResponseItem,
-  TblValuesItem 
+  TblValuesItem,
 } from "../types/cctv";
 
 // Константы
-const TARGET_WS = process.env.REACT_APP_TARGET_WS;
+const WS_URL = process.env.REACT_APP_WS_URL;
 const FUNCTIONS = process.env.REACT_APP_FUNCTIONS;
 
 export const CCTVSystemPage: React.FC = () => {
@@ -48,15 +54,17 @@ export const CCTVSystemPage: React.FC = () => {
   const [equipmentPage, setEquipmentPage] = useState<number>(1);
   const [equipmentRowsPerPage, setEquipmentRowsPerPage] = useState<number>(10);
   const [equipmentTotalCount, setEquipmentTotalCount] = useState<number>(0);
-  
-  const [maintenanceTasks, setMaintenanceTasks] = useState<CCTVMaintenanceTask[]>([]);
+
+  const [maintenanceTasks, setMaintenanceTasks] = useState<
+    CCTVMaintenanceTask[]
+  >([]);
   const [allTasks, setAllTasks] = useState<CCTVMaintenanceTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState<boolean>(true);
   const [tasksPage, setTasksPage] = useState<number>(1);
   const [tasksRowsPerPage, setTasksRowsPerPage] = useState<number>(10);
 
   const { setAlarm, loading: alarmLoading } = useAlert();
-  
+
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
@@ -66,41 +74,66 @@ export const CCTVSystemPage: React.FC = () => {
   // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case "normal": case "норма": case "активен": return "success";
-      case "warning": case "внимание": case "предупреждение": return "warning";
-      case "critical": case "критично": case "ошибка": return "error";
-      default: return "default";
+      case "normal":
+      case "норма":
+      case "активен":
+        return "success";
+      case "warning":
+      case "внимание":
+      case "предупреждение":
+        return "warning";
+      case "critical":
+      case "критично":
+      case "ошибка":
+        return "error";
+      default:
+        return "default";
     }
   };
 
   const getStatusIcon = (status: string): React.ReactElement => {
     switch (status.toLowerCase()) {
-      case "normal": case "норма": case "активен": 
+      case "normal":
+      case "норма":
+      case "активен":
         return <CheckCircle fontSize="small" />;
-      case "warning": case "внимание": case "предупреждение": 
+      case "warning":
+      case "внимание":
+      case "предупреждение":
         return <WarningIcon fontSize="small" />;
-      case "critical": case "критично": case "ошибка": 
+      case "critical":
+      case "критично":
+      case "ошибка":
         return <ErrorIcon fontSize="small" />;
-      default: 
+      default:
         return <CheckCircle fontSize="small" />;
     }
   };
 
   const getDeviceIcon = (type: string): React.ReactNode => {
     switch (type.toLowerCase()) {
-      case "camera": case "камера": 
+      case "camera":
+      case "камера":
         return <Camera />;
-      case "recorder": case "регистратор": case "rg": 
+      case "recorder":
+      case "регистратор":
+      case "rg":
         return <Storage />;
-      case "server": case "сервер": case "sr": 
+      case "server":
+      case "сервер":
+      case "sr":
         return <Computer />;
-      case "switch": case "коммутатор": 
+      case "switch":
+      case "коммутатор":
         return <Lan />;
-      case "nvr": case "nvr-регистратор": 
+      case "nvr":
+      case "nvr-регистратор":
         return <Router />;
-      case "scanner": case "сканер": case "sc": 
+      case "scanner":
+      case "сканер":
+      case "sc":
         return <Videocam />;
-      default: 
+      default:
         return <Videocam />;
     }
   };
@@ -108,10 +141,10 @@ export const CCTVSystemPage: React.FC = () => {
   const formatDeviceValue = (device: CCTVDevice): string => {
     if (device.currentValue !== undefined) {
       let unit = "ед.";
-      if (device.param?.startsWith('cam')) unit = 'fps';
-      if (device.param?.startsWith('rg')) unit = 'кБ/с';
-      if (device.param?.startsWith('sc')) unit = '%';
-      if (device.param?.startsWith('sr')) unit = 'ед.';
+      if (device.param?.startsWith("cam")) unit = "fps";
+      if (device.param?.startsWith("rg")) unit = "кБ/с";
+      if (device.param?.startsWith("sc")) unit = "%";
+      if (device.param?.startsWith("sr")) unit = "ед.";
       return `${device.currentValue.toFixed(2)} ${unit}`;
     }
     return device.value || "Нет данных";
@@ -120,143 +153,191 @@ export const CCTVSystemPage: React.FC = () => {
   const mapDeviceType = (deviceType: string, param?: string): string => {
     if (!deviceType) {
       // Определяем по параметру
-      if (param?.startsWith('cam')) return "camera";
-      if (param?.startsWith('rg')) return "recorder";
-      if (param?.startsWith('sc')) return "scanner";
-      if (param?.startsWith('sr')) return "server";
+      if (param?.startsWith("cam")) return "camera";
+      if (param?.startsWith("rg")) return "recorder";
+      if (param?.startsWith("sc")) return "scanner";
+      if (param?.startsWith("sr")) return "server";
       return "camera";
     }
 
     const typeLower = deviceType.toLowerCase();
 
-    if (typeLower.includes("камера") || typeLower.includes("camera") || typeLower.includes("cam")) {
+    if (
+      typeLower.includes("камера") ||
+      typeLower.includes("camera") ||
+      typeLower.includes("cam")
+    ) {
       return "camera";
     }
-    if (typeLower.includes("регистратор") || typeLower.includes("recorder") || typeLower.includes("rg")) {
+    if (
+      typeLower.includes("регистратор") ||
+      typeLower.includes("recorder") ||
+      typeLower.includes("rg")
+    ) {
       return "recorder";
     }
-    if (typeLower.includes("сервер") || typeLower.includes("server") || typeLower.includes("sr")) {
+    if (
+      typeLower.includes("сервер") ||
+      typeLower.includes("server") ||
+      typeLower.includes("sr")
+    ) {
       return "server";
     }
-    if (typeLower.includes("сканер") || typeLower.includes("scanner") || typeLower.includes("sc")) {
+    if (
+      typeLower.includes("сканер") ||
+      typeLower.includes("scanner") ||
+      typeLower.includes("sc")
+    ) {
       return "scanner";
     }
-    if (typeLower.includes("коммутатор") || typeLower.includes("switch") || typeLower.includes("sw")) {
+    if (
+      typeLower.includes("коммутатор") ||
+      typeLower.includes("switch") ||
+      typeLower.includes("sw")
+    ) {
       return "switch";
     }
     return "camera";
   };
 
   // ========== ФУНКЦИИ ДЛЯ ПОЛУЧЕНИЯ РЕАЛЬНЫХ ДАННЫХ ==========
-  const fetchFromGetDevicesHTF = useCallback(async (paramPrefix: string): Promise<CCTVDataPoint[]> => {
-    try {
-      console.log('🔍 fetchFromGetDevicesHTF для префикса:', paramPrefix);
-      
-      const functionsBase = FUNCTIONS;
-      if (!functionsBase) {
-        console.error('❌ FUNCTIONS не определен в env');
+  const fetchFromGetDevicesHTF = useCallback(
+    async (paramPrefix: string): Promise<CCTVDataPoint[]> => {
+      try {
+        console.log("🔍 fetchFromGetDevicesHTF для префикса:", paramPrefix);
+
+        const functionsBase = FUNCTIONS;
+        if (!functionsBase) {
+          console.error("❌ FUNCTIONS не определен в env");
+          return [];
+        }
+
+        const requestData = [{ param: paramPrefix }];
+
+        console.log(
+          "📤 Отправляем запрос с данными:",
+          JSON.stringify(requestData),
+        );
+
+        const response = await apiClient.post<HTFResponseItem[]>(
+          "getDevicesHTF",
+          requestData,
+          {
+            baseURL: functionsBase,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        );
+
+        console.log("📥 Ответ getDevicesHTF:", {
+          тип: Array.isArray(response) ? "массив" : typeof response,
+          длина: Array.isArray(response) ? response.length : "N/A",
+        });
+
+        if (response && Array.isArray(response) && response.length > 0) {
+          const historicalData: CCTVDataPoint[] = [];
+
+          response.forEach((item: HTFResponseItem) => {
+            if (item.vValue && Array.isArray(item.vValue) && item.vValue[0]) {
+              const values = item.vValue[0];
+
+              Object.keys(values).forEach((key) => {
+                if (
+                  key.startsWith(paramPrefix) &&
+                  key !== "volumeDate" &&
+                  key !== "id"
+                ) {
+                  const valueStr = String(values[key]).replace(",", ".");
+                  const value = parseFloat(valueStr);
+
+                  if (!isNaN(value)) {
+                    historicalData.push({
+                      timestamp: item.vUpdateTime,
+                      value: value,
+                      node: key,
+                      param: key,
+                    });
+                  }
+                }
+              });
+            }
+          });
+
+          console.log(
+            `📈 Найдено ${historicalData.length} точек для префикса ${paramPrefix}`,
+          );
+          return historicalData;
+        }
+
+        return [];
+      } catch (error: any) {
+        console.error("❌ Ошибка getDevicesHTF:", error.message);
         return [];
       }
-      
-      const requestData = [{ param: paramPrefix }];
-      
-      console.log('📤 Отправляем запрос с данными:', JSON.stringify(requestData));
-      
-      const response = await apiClient.post<HTFResponseItem[]>(
-        'getDevicesHTF',
-        requestData,
-        { 
-          baseURL: functionsBase,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      console.log('📥 Ответ getDevicesHTF:', {
-        тип: Array.isArray(response) ? 'массив' : typeof response,
-        длина: Array.isArray(response) ? response.length : 'N/A',
-      });
-      
-      if (response && Array.isArray(response) && response.length > 0) {
-        const historicalData: CCTVDataPoint[] = [];
-        
-        response.forEach((item: HTFResponseItem) => {
-          if (item.vValue && Array.isArray(item.vValue) && item.vValue[0]) {
-            const values = item.vValue[0];
-            
-            Object.keys(values).forEach(key => {
-              if (key.startsWith(paramPrefix) && key !== 'volumeDate' && key !== 'id') {
-                const valueStr = String(values[key]).replace(',', '.');
-                const value = parseFloat(valueStr);
-                
-                if (!isNaN(value)) {
-                  historicalData.push({
-                    timestamp: item.vUpdateTime,
-                    value: value,
-                    node: key,
-                    param: key
-                  });
-                }
-              }
-            });
-          }
-        });
-        
-        console.log(`📈 Найдено ${historicalData.length} точек для префикса ${paramPrefix}`);
-        return historicalData;
-      }
-      
-      return [];
-      
-    } catch (error: any) {
-      console.error('❌ Ошибка getDevicesHTF:', error.message);
-      return [];
-    }
-  }, []);
+    },
+    [],
+  );
 
   // ========== ФУНКЦИИ ДЛЯ ОБСЛУЖИВАНИЯ ==========
   const getTaskStatusInfo = (action: string) => {
     const actionLower = action.toLowerCase();
-    
-    if (actionLower.includes('выполнено') || actionLower.includes('завершено')) {
-      return { label: 'Выполнено', color: 'success' as const };
-    } else if (actionLower.includes('запланировано') || actionLower.includes('план')) {
-      return { label: 'Запланировано', color: 'info' as const };
-    } else if (actionLower.includes('задерж') || actionLower.includes('отложен')) {
-      return { label: 'Задержка', color: 'warning' as const };
-    } else if (actionLower.includes('отмен') || actionLower.includes('отклонен')) {
-      return { label: 'Отменено', color: 'error' as const };
-    } else if (actionLower.includes('в работе') || actionLower.includes('выполняется')) {
-      return { label: 'В работе', color: 'primary' as const };
+
+    if (
+      actionLower.includes("выполнено") ||
+      actionLower.includes("завершено")
+    ) {
+      return { label: "Выполнено", color: "success" as const };
+    } else if (
+      actionLower.includes("запланировано") ||
+      actionLower.includes("план")
+    ) {
+      return { label: "Запланировано", color: "info" as const };
+    } else if (
+      actionLower.includes("задерж") ||
+      actionLower.includes("отложен")
+    ) {
+      return { label: "Задержка", color: "warning" as const };
+    } else if (
+      actionLower.includes("отмен") ||
+      actionLower.includes("отклонен")
+    ) {
+      return { label: "Отменено", color: "error" as const };
+    } else if (
+      actionLower.includes("в работе") ||
+      actionLower.includes("выполняется")
+    ) {
+      return { label: "В работе", color: "primary" as const };
     } else {
-      return { label: action, color: 'default' as const };
+      return { label: action, color: "default" as const };
     }
   };
 
   const fetchMaintenanceTasks = useCallback(async () => {
     try {
       setTasksLoading(true);
-      
-      const response = await apiClient.get<CCTVMaintenanceTask[]>('tblTasks');
-      
+
+      const response = await apiClient.get<CCTVMaintenanceTask[]>("tblTasks");
+
       if (response && Array.isArray(response)) {
-        const cctvTasks = response.filter(task => {
-          const taskType = (task.type || '').toLowerCase();
-          const taskDevice = (task.device || '').toLowerCase();
-          
-          return taskType.includes('камера') || 
-                 taskType.includes('видео') ||
-                 taskType.includes('регистратор') ||
-                 taskType.includes('сервер') ||
-                 taskType.includes('nvr') ||
-                 taskType.includes('dvr') ||
-                 taskDevice.includes('камера') ||
-                 taskDevice.includes('видео') ||
-                 taskDevice.includes('cctv') ||
-                 taskDevice.includes('регистратор');
+        const cctvTasks = response.filter((task) => {
+          const taskType = (task.type || "").toLowerCase();
+          const taskDevice = (task.device || "").toLowerCase();
+
+          return (
+            taskType.includes("камера") ||
+            taskType.includes("видео") ||
+            taskType.includes("регистратор") ||
+            taskType.includes("сервер") ||
+            taskType.includes("nvr") ||
+            taskType.includes("dvr") ||
+            taskDevice.includes("камера") ||
+            taskDevice.includes("видео") ||
+            taskDevice.includes("cctv") ||
+            taskDevice.includes("регистратор")
+          );
         });
-        
+
         setAllTasks(cctvTasks);
         setMaintenanceTasks(cctvTasks);
       } else {
@@ -284,25 +365,33 @@ export const CCTVSystemPage: React.FC = () => {
         const group = (device.group || "").toLowerCase().trim();
         const param = (device.param || "").toLowerCase();
         const name = (device.name || "").toLowerCase();
-        
-        return group === "video" || 
-               group === "cctv" ||
-               param.startsWith("cam") ||
-               param.startsWith("rg") ||
-               param.startsWith("sc") ||
-               param.startsWith("sr") ||
-               name.includes("камера") ||
-               name.includes("видео") ||
-               name.includes("cctv") ||
-               name.includes("регистратор");
+
+        return (
+          group === "video" ||
+          group === "cctv" ||
+          param.startsWith("cam") ||
+          param.startsWith("rg") ||
+          param.startsWith("sc") ||
+          param.startsWith("sr") ||
+          name.includes("камера") ||
+          name.includes("видео") ||
+          name.includes("cctv") ||
+          name.includes("регистратор")
+        );
       })
       .map((device: any, index: number): CCTVDevice => {
-        const deviceType = mapDeviceType(device.type || device.description || device.name, device.param);
+        const deviceType = mapDeviceType(
+          device.type || device.description || device.name,
+          device.param,
+        );
 
         let status: "normal" | "warning" | "critical" = "normal";
         if (device.status === "warning" || device.status === "Внимание") {
           status = "warning";
-        } else if (device.status === "critical" || device.status === "Критично") {
+        } else if (
+          device.status === "critical" ||
+          device.status === "Критично"
+        ) {
           status = "critical";
         }
 
@@ -343,61 +432,78 @@ export const CCTVSystemPage: React.FC = () => {
         console.log(`📊 Найдено ${cctvDevices.length} устройств CCTV`);
 
         try {
-          const valuesResponse = await apiClient.get<TblValuesItem[]>('tblValues');
+          const valuesResponse =
+            await apiClient.get<TblValuesItem[]>("tblValues");
           if (valuesResponse && Array.isArray(valuesResponse)) {
-            console.log(`📈 Загружено ${valuesResponse.length} текущих значений`);
-            
-            const updatedDevices = cctvDevices.map(device => {
+            console.log(
+              `📈 Загружено ${valuesResponse.length} текущих значений`,
+            );
+
+            const updatedDevices = cctvDevices.map((device) => {
               if (device.param) {
-                const deviceValue = valuesResponse.find((item: TblValuesItem) => 
-                  item.param === device.param ||
-                  item.name === device.param ||
-                  item.id === device.param
+                const deviceValue = valuesResponse.find(
+                  (item: TblValuesItem) =>
+                    item.param === device.param ||
+                    item.name === device.param ||
+                    item.id === device.param,
                 );
-                
+
                 if (deviceValue) {
-                  const valueStr = String(deviceValue.value || deviceValue.data || deviceValue.val || '0');
-                  const numericValue = parseFloat(valueStr.replace(',', '.'));
-                  
+                  const valueStr = String(
+                    deviceValue.value ||
+                      deviceValue.data ||
+                      deviceValue.val ||
+                      "0",
+                  );
+                  const numericValue = parseFloat(valueStr.replace(",", "."));
+
                   if (!isNaN(numericValue)) {
                     let unit = "ед.";
-                    if (device.param.startsWith('cam')) unit = 'fps';
-                    if (device.param.startsWith('rg')) unit = 'кБ/с';
-                    if (device.param.startsWith('sc')) unit = '%';
-                    if (device.param.startsWith('sr')) unit = 'ед.';
-                    
+                    if (device.param.startsWith("cam")) unit = "fps";
+                    if (device.param.startsWith("rg")) unit = "кБ/с";
+                    if (device.param.startsWith("sc")) unit = "%";
+                    if (device.param.startsWith("sr")) unit = "ед.";
+
                     return {
                       ...device,
                       value: `${numericValue.toFixed(2)} ${unit}`,
                       currentValue: numericValue,
-                      timestamp: deviceValue.timestamp || deviceValue.time || deviceValue.created_at || new Date().toISOString()
+                      timestamp:
+                        deviceValue.timestamp ||
+                        deviceValue.time ||
+                        deviceValue.created_at ||
+                        new Date().toISOString(),
                     };
                   }
                 }
               }
               return device;
             });
-            
+
             setDevices(updatedDevices);
             setFilteredDevices(updatedDevices);
             setEquipmentTotalCount(updatedDevices.length);
-            
+
             if (updatedDevices.length > 0 && !selectedNode) {
               const firstDevice = updatedDevices[0];
               setSelectedNode(firstDevice.id);
               if (firstDevice.param) {
-                const prefix = firstDevice.param.replace(/\d+$/, '');
-                await fetchHistoricalDataForDevice(firstDevice.id, prefix, firstDevice.param);
+                const prefix = firstDevice.param.replace(/\d+$/, "");
+                await fetchHistoricalDataForDevice(
+                  firstDevice.id,
+                  prefix,
+                  firstDevice.param,
+                );
               }
             }
           } else {
-            console.warn('⚠️ tblValues вернул не массив');
+            console.warn("⚠️ tblValues вернул не массив");
             setDevices(cctvDevices);
             setFilteredDevices(cctvDevices);
             setEquipmentTotalCount(cctvDevices.length);
           }
         } catch (error) {
-          console.warn('⚠️ Ошибка загрузки значений:', error);
+          console.warn("⚠️ Ошибка загрузки значений:", error);
           setDevices(cctvDevices);
           setFilteredDevices(cctvDevices);
           setEquipmentTotalCount(cctvDevices.length);
@@ -410,7 +516,7 @@ export const CCTVSystemPage: React.FC = () => {
       setSnackbar({
         open: true,
         message: `Ошибка загрузки устройств CCTV: ${err.message}`,
-        severity: 'error'
+        severity: "error",
       });
     } finally {
       setLoading(false);
@@ -418,77 +524,90 @@ export const CCTVSystemPage: React.FC = () => {
   }, [selectedNode, filterCCTVDevices]);
 
   // ========== ОБНОВЛЕНИЕ ДАННЫХ ГРАФИКА ==========
-  const fetchHistoricalDataForDevice = useCallback(async (deviceId: string, paramPrefix: string, specificParam?: string) => {
-    console.log(`🔄 Загрузка исторических данных для устройства ${deviceId}, префикс: ${paramPrefix}`);
-    
-    try {
-      setRefreshing(true);
-      
-      const historicalData = await fetchFromGetDevicesHTF(paramPrefix);
-      
-      if (historicalData.length === 0) {
-        console.error('❌ Нет исторических данных для отображения');
+  const fetchHistoricalDataForDevice = useCallback(
+    async (deviceId: string, paramPrefix: string, specificParam?: string) => {
+      console.log(
+        `🔄 Загрузка исторических данных для устройства ${deviceId}, префикс: ${paramPrefix}`,
+      );
+
+      try {
+        setRefreshing(true);
+
+        const historicalData = await fetchFromGetDevicesHTF(paramPrefix);
+
+        if (historicalData.length === 0) {
+          console.error("❌ Нет исторических данных для отображения");
+          setSnackbar({
+            open: true,
+            message: `Нет данных для префикса ${paramPrefix}`,
+            severity: "warning",
+          });
+          return;
+        }
+
+        let filteredData = historicalData;
+        if (specificParam) {
+          filteredData = historicalData.filter(
+            (item) => item.param === specificParam,
+          );
+          console.log(
+            `📊 Для параметра ${specificParam} найдено ${filteredData.length} точек`,
+          );
+        }
+
+        filteredData.sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        );
+
+        setChartData(filteredData);
+        console.log(`✅ График обновлен: ${filteredData.length} точек`);
+
+        if (filteredData.length > 0) {
+          const latestValue = filteredData[filteredData.length - 1].value;
+
+          setDevices((prev) =>
+            prev.map((d) =>
+              d.id === deviceId
+                ? {
+                    ...d,
+                    currentValue: latestValue,
+                    timestamp: filteredData[filteredData.length - 1].timestamp,
+                  }
+                : d,
+            ),
+          );
+        }
+
+        setLastUpdate(new Date().toLocaleTimeString("ru-RU"));
+      } catch (error: any) {
+        console.error("❌ Ошибка обновления графика:", error.message);
         setSnackbar({
           open: true,
-          message: `Нет данных для префикса ${paramPrefix}`,
-          severity: 'warning'
+          message: `Ошибка загрузки графика: ${error.message}`,
+          severity: "error",
         });
-        return;
+      } finally {
+        setRefreshing(false);
       }
-      
-      let filteredData = historicalData;
-      if (specificParam) {
-        filteredData = historicalData.filter(item => item.param === specificParam);
-        console.log(`📊 Для параметра ${specificParam} найдено ${filteredData.length} точек`);
-      }
-      
-      filteredData.sort((a, b) => 
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-      
-      setChartData(filteredData);
-      console.log(`✅ График обновлен: ${filteredData.length} точек`);
-      
-      if (filteredData.length > 0) {
-        const latestValue = filteredData[filteredData.length - 1].value;
-        
-        setDevices(prev => prev.map(d => 
-          d.id === deviceId ? { 
-            ...d, 
-            currentValue: latestValue,
-            timestamp: filteredData[filteredData.length - 1].timestamp
-          } : d
-        ));
-      }
-      
-      setLastUpdate(new Date().toLocaleTimeString("ru-RU"));
-      
-    } catch (error: any) {
-      console.error('❌ Ошибка обновления графика:', error.message);
-      setSnackbar({
-        open: true,
-        message: `Ошибка загрузки графика: ${error.message}`,
-        severity: 'error',
-      });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [fetchFromGetDevicesHTF]);
+    },
+    [fetchFromGetDevicesHTF],
+  );
 
   // ========== WEB SOCKET ==========
   useEffect(() => {
-    if (!TARGET_WS) {
+    if (!WS_URL) {
       console.warn("WebSocket URL не настроен");
       return;
     }
 
-    const ws = new WebSocket(TARGET_WS);
-    console.log("🔗 Подключение к WebSocket для CCTV:", TARGET_WS);
+    const ws = new WebSocket(WS_URL);
+    console.log("🔗 Подключение к WebSocket для CCTV:", WS_URL);
 
     ws.onopen = () => {
       console.log("✅ WebSocket подключен для CCTV");
       setWsConnected(true);
-      
+
       setSnackbar({
         open: true,
         message: "Реальное время подключено для CCTV",
@@ -532,39 +651,52 @@ export const CCTVSystemPage: React.FC = () => {
   // ========== АВТООБНОВЛЕНИЕ ГРАФИКА ==========
   useEffect(() => {
     if (!pollingActive || !selectedNode) return;
-    
+
     const intervalId = setInterval(() => {
-      console.log('🔄 Автообновление данных CCTV');
-      const selectedDevice = devices.find(d => d.id === selectedNode);
+      console.log("🔄 Автообновление данных CCTV");
+      const selectedDevice = devices.find((d) => d.id === selectedNode);
       if (selectedDevice?.param) {
-        const prefix = selectedDevice.param.replace(/\d+$/, '');
-        fetchHistoricalDataForDevice(selectedNode, prefix, selectedDevice.param);
+        const prefix = selectedDevice.param.replace(/\d+$/, "");
+        fetchHistoricalDataForDevice(
+          selectedNode,
+          prefix,
+          selectedDevice.param,
+        );
       }
     }, 10000);
-    
+
     return () => clearInterval(intervalId);
   }, [pollingActive, selectedNode, devices, fetchHistoricalDataForDevice]);
 
   // ========== ОБРАБОТЧИКИ ==========
   const handleManualRefresh = useCallback(() => {
     fetchCCTVDevices();
-    const selectedDevice = devices.find(d => d.id === selectedNode);
+    const selectedDevice = devices.find((d) => d.id === selectedNode);
     if (selectedDevice?.param) {
-      const prefix = selectedDevice.param.replace(/\d+$/, '');
+      const prefix = selectedDevice.param.replace(/\d+$/, "");
       fetchHistoricalDataForDevice(selectedNode, prefix, selectedDevice.param);
     }
     fetchMaintenanceTasks();
-  }, [fetchCCTVDevices, selectedNode, devices, fetchHistoricalDataForDevice, fetchMaintenanceTasks]);
+  }, [
+    fetchCCTVDevices,
+    selectedNode,
+    devices,
+    fetchHistoricalDataForDevice,
+    fetchMaintenanceTasks,
+  ]);
 
-  const handleNodeClick = useCallback(async (nodeId: string) => {
-    setSelectedNode(nodeId);
-    
-    const device = devices.find(d => d.id === nodeId);
-    if (device?.param) {
-      const prefix = device.param.replace(/\d+$/, '');
-      await fetchHistoricalDataForDevice(nodeId, prefix, device.param);
-    }
-  }, [devices, fetchHistoricalDataForDevice]);
+  const handleNodeClick = useCallback(
+    async (nodeId: string) => {
+      setSelectedNode(nodeId);
+
+      const device = devices.find((d) => d.id === nodeId);
+      if (device?.param) {
+        const prefix = device.param.replace(/\d+$/, "");
+        await fetchHistoricalDataForDevice(nodeId, prefix, device.param);
+      }
+    },
+    [devices, fetchHistoricalDataForDevice],
+  );
 
   const handleAlarmClick = useCallback(async () => {
     const device = devices.find((d) => d.id === selectedNode);
@@ -578,12 +710,12 @@ export const CCTVSystemPage: React.FC = () => {
     }
 
     try {
-      const currentUser = localStorage.getItem('userName') || 'admin';
-      
+      const currentUser = localStorage.getItem("userName") || "admin";
+
       await setAlarm({
         parameter: device.param || device.id,
-        value: device.value || 'Н/Д',
-        user: currentUser
+        value: device.value || "Н/Д",
+        user: currentUser,
       });
 
       setSnackbar({
@@ -592,10 +724,10 @@ export const CCTVSystemPage: React.FC = () => {
         severity: "success",
       });
     } catch (err: any) {
-      console.error('❌ Ошибка при отправке сигнала тревоги:', err);
+      console.error("❌ Ошибка при отправке сигнала тревоги:", err);
       setSnackbar({
         open: true,
-        message: `Ошибка отправки сигнала тревоги: ${err.message || 'Неизвестная ошибка'}`,
+        message: `Ошибка отправки сигнала тревоги: ${err.message || "Неизвестная ошибка"}`,
         severity: "error",
       });
     }
@@ -612,13 +744,13 @@ export const CCTVSystemPage: React.FC = () => {
   const handleEquipmentTypeChange = (event: SelectChangeEvent) => {
     const type = event.target.value;
     setSelectedEquipmentType(type);
-    
+
     if (type === "all") {
       setFilteredDevices(devices);
       setEquipmentTotalCount(devices.length);
     } else {
-      const filtered = devices.filter(device => 
-        device.type.toLowerCase() === type.toLowerCase()
+      const filtered = devices.filter(
+        (device) => device.type.toLowerCase() === type.toLowerCase(),
       );
       setFilteredDevices(filtered);
       setEquipmentTotalCount(filtered.length);
@@ -632,9 +764,9 @@ export const CCTVSystemPage: React.FC = () => {
   };
 
   const handleRefreshChart = () => {
-    const device = devices.find(d => d.id === selectedNode);
+    const device = devices.find((d) => d.id === selectedNode);
     if (device?.param) {
-      const prefix = device.param.replace(/\d+$/, '');
+      const prefix = device.param.replace(/\d+$/, "");
       fetchHistoricalDataForDevice(selectedNode, prefix, device.param);
     }
   };
@@ -720,7 +852,6 @@ export const CCTVSystemPage: React.FC = () => {
       tasksRowsPerPage={tasksRowsPerPage}
       snackbar={snackbar}
       alarmLoading={alarmLoading}
-
       // Пагинация
       schemeTotalCount={schemeTotalCount}
       paginatedDevices={paginatedDevices}
@@ -728,7 +859,6 @@ export const CCTVSystemPage: React.FC = () => {
       paginatedTasks={paginatedTasks}
       tasksTotalCount={tasksTotalCount}
       selectedDevice={selectedDevice}
-
       // Обработчики
       onManualRefresh={handleManualRefresh}
       onNodeClick={handleNodeClick}
@@ -743,7 +873,6 @@ export const CCTVSystemPage: React.FC = () => {
       onTasksPageChange={handleTasksPageChange}
       onTasksRowsPerPageChange={handleTasksRowsPerPageChange}
       onRefreshChart={handleRefreshChart}
-
       // Вспомогательные функции
       getStatusColor={getStatusColor}
       getStatusIcon={getStatusIcon}
